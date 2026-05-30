@@ -209,11 +209,14 @@ function gwDisconnect() {
 
 // ── Discord REST helper ───────────────────────────────────────────────────────
 async function discordFetch(path, token, options = {}) {
+    const isFormData = options.body instanceof FormData;
     const res = await fetch(`https://discord.com/api/v10${path}`, {
         ...options,
         headers: {
             Authorization: `Bot ${token}`,
-            'Content-Type': 'application/json',
+            // Don't set Content-Type for FormData — fetch sets it automatically
+            // with the correct multipart boundary.
+            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             ...(options.headers || {}),
         },
     });
@@ -290,15 +293,34 @@ app.post('/api/bot/channels/:channelId/messages', async (req, res) => {
     if (!botState.token) return res.status(401).json({ error: 'Bot not connected.' });
 
     const channelId = req.params.channelId;
-    const payload   = req.body; // { components, flags }
+    const { attachments, ...discordPayload } = req.body; // { components, flags, attachments? }
 
-    console.log(`[Send] → channel ${channelId}  flags=${payload.flags}  components=${payload.components?.length ?? 0}`);
+    console.log(`[Send] → channel ${channelId}  flags=${discordPayload.flags}  components=${discordPayload.components?.length ?? 0}  files=${attachments?.length ?? 0}`);
 
     try {
+        let fetchOptions;
+
+        if (attachments && attachments.length > 0) {
+            // Rebuild multipart/form-data with the actual file binaries so Discord
+            // can match the attachment:// references inside the components payload.
+            // FormData and Blob are globals in Node.js 18+.
+            const form = new FormData();
+            form.append('payload_json', JSON.stringify(discordPayload));
+            for (let i = 0; i < attachments.length; i++) {
+                const { name, data, type } = attachments[i];
+                const binary = Buffer.from(data, 'base64');
+                const blob = new Blob([binary], { type });
+                form.append(`files[${i}]`, blob, name);
+            }
+            fetchOptions = { method: 'POST', body: form };
+        } else {
+            fetchOptions = { method: 'POST', body: JSON.stringify(discordPayload) };
+        }
+
         const result = await discordFetch(
             `/channels/${channelId}/messages`,
             botState.token,
-            { method: 'POST', body: JSON.stringify(payload) }
+            fetchOptions
         );
         console.log(`[Send] ✓ Success`);
         res.json(result || { status: 'Success' });

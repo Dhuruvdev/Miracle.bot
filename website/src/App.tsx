@@ -290,10 +290,25 @@ function App() {
     const sendViaBot = async () => {
         setBotResponse(null);
         try {
+            const fileNames = webhookImplementation.scrapFiles(state);
+            const attachments: { name: string; data: string; type: string }[] = [];
+            for (const name of fileNames) {
+                const blob: Blob | undefined = window.uploadedFiles?.[name];
+                if (blob) {
+                    const base64 = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    attachments.push({ name, data: base64, type: blob.type || 'application/octet-stream' });
+                }
+            }
+
             const res = await fetch(`/api/bot/channels/${channelId.trim()}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ components: state, flags: 32768 }),
+                body: JSON.stringify({ components: state, flags: 32768, attachments }),
             });
             const data: any = await res.json().catch(() => null);
             if (res.ok) {
