@@ -17,6 +17,7 @@ import i18next from 'i18next';
 import { supportedLngs } from '../libs.config';
 import { ActionMenuComponent } from './ActionMenu';
 import { useButtonActions, STEP_LABELS, STEP_ICONS, stepSummary } from './ButtonActionsContext';
+import { BotChannelSelector } from './BotChannelSelector';
 
 
 webhookImplementation.init();
@@ -306,18 +307,13 @@ function App() {
                 </button>
             </div>
 
-            <p style={{marginBottom: '0.5rem'}}>
-                <span style={{fontSize: 13, color: '#dcddde', fontWeight: '500'}}>Channel ID</span>
-            </p>
-            <input
-                className={Styles.input}
-                placeholder="Channel ID (e.g. 123456789012345678)"
-                type="text"
-                value={channelId}
-                onChange={ev => setChannelId(ev.target.value)}
+            <BotChannelSelector
+                botToken={botToken}
+                channelId={channelId}
+                onChannelChange={setChannelId}
             />
-            <p style={{marginTop: '0.5rem', marginBottom: '2rem', color: 'grey', fontSize: 13}}>
-                Sends the message directly to a channel using your bot. Token is stored locally and never sent to any server other than Discord.
+            <p style={{marginTop: '0.25rem', marginBottom: '2rem', color: 'grey', fontSize: 13}}>
+                Token is stored locally and never sent anywhere except Discord's API.
             </p>
 
             {!!botResponse && <div className={Styles.data}
