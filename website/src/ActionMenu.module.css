@@ -130,6 +130,109 @@
     &:hover { border-color: #5865f2; color: #fff; }
 }
 
+/* ── action type picker (shown when + Add action is clicked) ── */
+.picker {
+    background: #111214;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 0.6rem 0.6rem 0.8rem;
+    margin-bottom: 0.8rem;
+}
+
+.pickerTitle {
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #6d6f78;
+    letter-spacing: 0.6px;
+    margin: 0.2rem 0.6rem 0.6rem;
+}
+
+.pickerItem {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #dcddde;
+    font-size: 1.3rem;
+    transition: background 0.1s;
+
+    &:hover {
+        background: rgba(88, 101, 242, 0.15);
+        color: #fff;
+    }
+}
+
+.pickerItemIcon {
+    font-size: 1.6rem;
+    width: 2.4rem;
+    text-align: center;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.pickerItemLabel {
+    flex: 1;
+    font-size: 1.3rem;
+    line-height: 1.3;
+}
+
+.pickerItemArrow {
+    color: #4e5058;
+    font-size: 1.8rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+/* ── action type tiles inside the step editor ── */
+.typePicker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.4rem;
+}
+
+.typePickerItem {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #b5bac1;
+    font-size: 1.25rem;
+    border: 1px solid transparent;
+    transition: all 0.1s;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #dcddde;
+    }
+}
+
+.typePickerItemActive {
+    background: rgba(88, 101, 242, 0.18);
+    border-color: rgba(88, 101, 242, 0.5);
+    color: #fff;
+
+    &:hover {
+        background: rgba(88, 101, 242, 0.22);
+    }
+}
+
+.typePickerIcon {
+    font-size: 1.4rem;
+    width: 2rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.typePickerLabel {
+    flex: 1;
+}
+
 /* ── inline step editor ── */
 .editor {
     background: #111214;
@@ -148,7 +251,7 @@
     margin: 0 0 1rem;
 }
 
-/* ── field labels — match App.module.css .input_name ── */
+/* ── field labels ── */
 .label {
     display: block;
     font-family: "gg sans", Whitney, "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -160,7 +263,7 @@
     margin: 0.8rem 0 0.4rem;
 }
 
-/* ── inputs — match App.module.css .input exactly ── */
+/* ── inputs ── */
 .input {
     width: 100%;
     padding: 0.8rem 1.6rem;
@@ -178,7 +281,7 @@
     &::placeholder { font-style: italic; color: gray; }
 }
 
-/* ── textarea — same as input but resizable ── */
+/* ── textarea ── */
 .textarea {
     width: 100%;
     padding: 0.8rem 1.6rem;
@@ -254,6 +357,21 @@
     cursor: pointer;
     font-family: inherit;
     &:hover { border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+}
+
+.cancelBtnFull {
+    width: 100%;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    color: #6d6f78;
+    padding: 0.55rem 1.2rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+    margin-top: 0.6rem;
+    &:hover { border-color: rgba(255, 255, 255, 0.2); color: #b5bac1; }
 }
 
 /* ── clear all ── */

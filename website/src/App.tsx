@@ -157,6 +157,17 @@ function App() {
         interactiveDisabled: false,
     }), []);
 
+    const previewPassProps = useMemo((): PassProps => ({
+        getFile,
+        getFileName,
+        setFile,
+        BetterInput,
+        EmojiPicker,
+        ColorPicker,
+        EmojiShow,
+        interactiveDisabled: true,
+    }), []);
+
     useEffect(() => {
         const getData = setTimeout(() => localStorage.setItem("discord.builders__webhookToken", webhookUrl), 1000)
         return () => clearTimeout(getData)
@@ -367,15 +378,33 @@ function App() {
                 dispatch(actions.setKey({key: ['data'], value: []}));
             }}>Clear everything</button></p>
         </div>}
-        <ErrorBoundary fallback={<></>}>
-            <Capsule state={state}
-                     stateManager={stateManager}
-                     stateKey={stateKey}
-                     passProps={passProps}
-                     className={Styles.preview}
-                     errors={errors}
-            />
-        </ErrorBoundary>
+        <div className={Styles.leftColumn}>
+            <ErrorBoundary fallback={<></>}>
+                <Capsule state={state}
+                         stateManager={stateManager}
+                         stateKey={stateKey}
+                         passProps={passProps}
+                         className={Styles.preview}
+                         errors={errors}
+                />
+            </ErrorBoundary>
+            <div className={Styles.livePreviewSection}>
+                <div className={Styles.livePreviewHeader}>
+                    <span className={Styles.livePreviewDot} />
+                    Live Preview
+                </div>
+                <div className={Styles.livePreviewWrap}>
+                    <ErrorBoundary fallback={<></>}>
+                        <Capsule state={state}
+                                 stateManager={stateManager}
+                                 stateKey={stateKey}
+                                 passProps={previewPassProps}
+                                 errors={null}
+                        />
+                    </ErrorBoundary>
+                </div>
+            </div>
+        </div>
         <div className={Styles.json}>
             <h1>discord.builders — {t('homepage.title')}</h1>
             <a href="https://github.com/StartITBot/discord.builders" target="_blank"><div className={Styles.badges}>

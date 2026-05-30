@@ -254,8 +254,26 @@ async function handleInteraction(interaction) {
     if (type !== 3) return;  // only MESSAGE_COMPONENT (button/select) interactions
     if (!data?.custom_id) return;
 
-    const customId = data.custom_id;
-    const action = buttonActions[customId];
+    const componentType = data.component_type; // 2 = button, 3 = select menu
+    let action;
+    let customId;
+
+    if (componentType === 3) {
+        // Select menu "Apply": find the first selected value that has an action configured
+        const selectedValues = data.values || [];
+        const matchedValue = selectedValues.find(v => buttonActions[v]);
+        if (matchedValue) {
+            action = buttonActions[matchedValue];
+            customId = matchedValue;
+            console.log(`[Interaction] Select menu option "${matchedValue}" applied`);
+        } else {
+            customId = data.custom_id;
+            action = buttonActions[customId];
+        }
+    } else {
+        customId = data.custom_id;
+        action = buttonActions[customId];
+    }
 
     if (!action || !action.steps?.length) {
         // No action configured — ACK so Discord doesn't show "interaction failed"

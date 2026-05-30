@@ -25,11 +25,6 @@ const ALL_TYPES: InteractionStepType[] = [
     'delete_message',
 ];
 
-const TYPE_OPTIONS = ALL_TYPES.map(t => ({
-    value: t,
-    label: `${STEP_ICONS[t]}  ${STEP_LABELS[t]}`,
-}));
-
 /* ── select styles tuned for the dark 1c1d20 editor background ── */
 const editorSelectStyles: typeof select_styles = {
     ...select_styles,
@@ -113,7 +108,7 @@ function StepEditor({
         return !!(step.content?.trim());
     };
 
-    const selectedType = TYPE_OPTIONS.find(o => o.value === step.type) ?? null;
+    const selectedType = ALL_TYPES.find(o => o === step.type) ?? null;
     const summary = embedSummary(step.embedJson);
 
     return (
@@ -121,14 +116,18 @@ function StepEditor({
             <p className={Styles.editorTitle}>{title}</p>
 
             <label className={Styles.label} style={{ marginTop: 0 }}>Action type</label>
-            <ReactSelect
-                styles={editorSelectStyles}
-                options={TYPE_OPTIONS}
-                value={selectedType}
-                onChange={opt => opt && changeType(opt.value as InteractionStepType)}
-                isSearchable={false}
-                menuPosition="fixed"
-            />
+            <div className={Styles.typePicker}>
+                {ALL_TYPES.map(t => (
+                    <div
+                        key={t}
+                        className={Styles.typePickerItem + (step.type === t ? ' ' + Styles.typePickerItemActive : '')}
+                        onClick={() => changeType(t)}
+                    >
+                        <span className={Styles.typePickerIcon}>{STEP_ICONS[t]}</span>
+                        <span className={Styles.typePickerLabel}>{STEP_LABELS[t]}</span>
+                    </div>
+                ))}
+            </div>
 
             {needsContent(step.type) && <>
                 <label className={Styles.label}>Message content</label>
@@ -204,9 +203,32 @@ function StepEditor({
             <div className={Styles.editorBtns}>
                 <button className={Styles.cancelBtn} onClick={onCancel}>Cancel</button>
                 <button className={Styles.saveBtn} disabled={!valid()} onClick={() => onSave(step)}>
-                    Save
+                    Apply
                 </button>
             </div>
+        </div>
+    );
+}
+
+/* ── Action Type Picker (shown when "+ Add action" is clicked) ── */
+function ActionTypePicker({
+    onPick,
+    onCancel,
+}: {
+    onPick: (type: InteractionStepType) => void;
+    onCancel: () => void;
+}) {
+    return (
+        <div className={Styles.picker}>
+            <p className={Styles.pickerTitle}>Choose an action type</p>
+            {ALL_TYPES.map(t => (
+                <div key={t} className={Styles.pickerItem} onClick={() => onPick(t)}>
+                    <span className={Styles.pickerItemIcon}>{STEP_ICONS[t]}</span>
+                    <span className={Styles.pickerItemLabel}>{STEP_LABELS[t]}</span>
+                    <span className={Styles.pickerItemArrow}>›</span>
+                </div>
+            ))}
+            <button className={Styles.cancelBtnFull} onClick={onCancel}>Cancel</button>
         </div>
     );
 }
@@ -218,6 +240,7 @@ export function ActionMenuComponent({ closeCallback, customId }: ActionMenuProps
 
     const [steps, setSteps] = useState<InteractionStep[]>(existing.steps);
     const [mode, setMode] = useState<string>('idle');
+    const [pickedType, setPickedType] = useState<InteractionStepType>('reply');
 
     const persist = (newSteps: InteractionStep[]) => {
         setSteps(newSteps);
@@ -235,7 +258,7 @@ export function ActionMenuComponent({ closeCallback, customId }: ActionMenuProps
     return (
         <div className={Styles.menu}>
             <div className={Styles.header}>
-                <span>⚡ Button Interactions</span>
+                <span>⚡ Interactions</span>
                 <button className={Styles.closeBtn} onClick={closeCallback}>✕</button>
             </div>
             <div className={Styles.body}>
@@ -278,15 +301,27 @@ export function ActionMenuComponent({ closeCallback, customId }: ActionMenuProps
                     ))}
                 </div>
 
-                {mode === 'adding' ? (
+                {mode === 'picking' && (
+                    <ActionTypePicker
+                        onPick={(type) => {
+                            setPickedType(type);
+                            setMode('adding');
+                        }}
+                        onCancel={() => setMode('idle')}
+                    />
+                )}
+
+                {mode === 'adding' && (
                     <StepEditor
                         title="Add action"
-                        initial={blankStep('reply')}
+                        initial={blankStep(pickedType)}
                         onSave={addStep}
                         onCancel={() => setMode('idle')}
                     />
-                ) : mode === 'idle' && (
-                    <button className={Styles.addBtn} onClick={() => setMode('adding')}>
+                )}
+
+                {mode === 'idle' && (
+                    <button className={Styles.addBtn} onClick={() => setMode('picking')}>
                         + Add action
                     </button>
                 )}
