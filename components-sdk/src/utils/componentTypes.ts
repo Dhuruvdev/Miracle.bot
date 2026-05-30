@@ -56,6 +56,7 @@ export type PassProps = {
     EmojiShow: EmojiShow,
     ActionMenu?: ActionMenu,
     interactiveDisabled: boolean,
+    hasAction?: (customId: string) => boolean,
 }
 
 export enum ButtonStyle {

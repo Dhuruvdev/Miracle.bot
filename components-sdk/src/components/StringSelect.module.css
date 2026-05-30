@@ -116,3 +116,52 @@
   width: 200px;
   padding: 0 20px;
 }
+
+/* ── per-option action button (⚡ lightning) ── */
+.action_btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 2.8rem;
+  height: 2.8rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+
+  img {
+    width: 1.8rem;
+    height: 1.8rem;
+    opacity: 0.45;
+    transition: opacity 0.1s;
+  }
+
+  &:hover {
+    background: rgba(88, 101, 242, 0.15);
+    border-color: rgba(88, 101, 242, 0.4);
+    img { opacity: 1; }
+  }
+
+  &.action_btn_active {
+    border-color: rgba(59, 165, 93, 0.5);
+    background: rgba(59, 165, 93, 0.08);
+    img { opacity: 0.9; }
+  }
+}
+
+/* green dot shown when an action is configured */
+.action_dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3ba55d;
+  border: 1.5px solid #36393f;
+  pointer-events: none;
+}

@@ -197,11 +197,14 @@ function StringSelectOption({state, stateKey: stateParent, index, stateManager, 
     const {open, setOpen, ignoreRef, closeLockRef} = useStateOpen(0);
     const stateKey = useMemo(() => [...stateParent, 'options', index], [...stateParent, 'options', index]);
     const btn_select = useRef<HTMLDivElement>(null);
+    const actionBtnRef = useRef<HTMLButtonElement>(null);
     const Comp = passProps.EmojiShow;
+    const hasExistingAction = !!(actionCallback && passProps.hasAction?.(state.value || ''));
 
     return (
         <DragLines draggable={true} removeKeyParent={removeKeyParent} droppableId={DroppableID.STRING_SELECT} data={state} stateKey={stateKey} dragDisabled={!!open}><div className={Styles.select_option + (open ? " " + Styles.open : "") + (state.default ? " " + Styles.blue : "") + (disabled ? " " + Styles.disabled : "")} onClick={(ev) => {
             if (btn_select.current && btn_select.current.contains(ev.target as HTMLElement)) return;
+            if (actionBtnRef.current && actionBtnRef.current.contains(ev.target as HTMLElement)) return;
             setOpen(1)
         }} ref={ignoreRef}>
             {state.emoji != null && <div className={CapsuleStyles.emoji}>
@@ -210,6 +213,21 @@ function StringSelectOption({state, stateKey: stateParent, index, stateManager, 
             <div className={Styles.text}>
                 {state.label} {!!state.description && <span className={Styles.desc}>&bull; {state.description}</span>}
             </div>
+            {actionCallback != null && !passProps.interactiveDisabled && (
+                <button
+                    ref={actionBtnRef}
+                    className={Styles.action_btn + (hasExistingAction ? ' ' + Styles.action_btn_active : '')}
+                    title={hasExistingAction ? 'Edit action for this option' : 'Add action for this option'}
+                    onClick={(ev) => {
+                        ev.stopPropagation();
+                        setOpen(0);
+                        actionCallback(state.value || null);
+                    }}
+                >
+                    <img src={Action} alt="action" />
+                    {hasExistingAction && <span className={Styles.action_dot} />}
+                </button>
+            )}
             { !!open && <div className={CapsuleStyles.large_button_ctx+ ' ' + CapsuleStyles.noright} ref={btn_select}>
                 {open === 1 && <MenuFirst state={state} stateKey={stateKey} stateManager={stateManager} setOpen={setOpen} removeKeyParent={removeKeyParent} actionCallback={actionCallback}/>}
                 {open === 2 && <MenuEmoji stateKey={[...stateKey, 'emoji']} stateManager={stateManager} passProps={passProps}/>}

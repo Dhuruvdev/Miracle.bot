@@ -145,6 +145,9 @@ function App() {
     const setFile = useCallback(webhookImplementation.setFile, []);
     const getFile = useCallback(webhookImplementation.getFile, [])
     const getFileName = useCallback(webhookImplementation.getFileName, [])
+    const { actions } = useButtonActions();
+    const actionsRef = useRef(actions);
+    actionsRef.current = actions;
     const passProps = useMemo((): PassProps => ({
         getFile,
         getFileName,
@@ -155,6 +158,7 @@ function App() {
         ActionMenu: ActionMenuComponent,
         EmojiShow,
         interactiveDisabled: false,
+        hasAction: (id: string) => !!actionsRef.current[id],
     }), []);
 
     const previewPassProps = useMemo((): PassProps => ({
