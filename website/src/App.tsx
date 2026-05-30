@@ -73,7 +73,10 @@ function App() {
     const [channelId, setChannelId] = useState<string>(
         () => localStorage.getItem('discord.builders__channelId') || ''
     );
-    const [botResponse, setBotResponse] = useState<object | null>(null);
+    const [botResponse,    setBotResponse]    = useState<object | null>(null);
+    const [botStartedAt,   setBotStartedAt]   = useState<number>(0);
+    const [botConnecting,  setBotConnecting]  = useState<boolean>(false);
+    const [botConnected,   setBotConnected]   = useState<boolean>(false);
 
     useEffect(() => {
         const t = setTimeout(() => localStorage.setItem('discord.builders__botToken', botToken), 500);
@@ -201,7 +204,6 @@ function App() {
     
     const { t } = useTranslation('website');
 
-    const canSendViaBot = botToken.trim().length > 0 && channelId.trim().length > 0;
 
     return <div className={Styles.app}>
         {(isDefault && page === '200.home') && <div className={Styles.alert}>
@@ -283,36 +285,60 @@ function App() {
             {/* ── Bot Connection ── */}
             <p style={{marginBottom: '0.5rem', marginTop: '3rem'}}>
                 <span style={{fontSize: 16, color: 'white', fontWeight: '500'}}>Connect a Bot</span>
+                {botConnected && (
+                    <span style={{
+                        marginLeft: '0.75rem', fontSize: 12, color: '#3ba55d',
+                        fontWeight: 600, verticalAlign: 'middle',
+                    }}>● Connected</span>
+                )}
             </p>
 
             <p style={{marginBottom: '0.5rem'}}>
                 <span style={{fontSize: 13, color: '#dcddde', fontWeight: '500'}}>Bot Token</span>
             </p>
-            <div className={Styles.input_pair} style={{marginBottom: '0.75rem'}}>
-                <div>
-                    <input
-                        className={Styles.input}
-                        placeholder="Bot Token"
-                        type="password"
-                        value={botToken}
-                        onChange={ev => setBotToken(ev.target.value)}
-                    />
-                </div>
-                <button
-                    className={Styles.button}
-                    disabled={!canSendViaBot}
-                    onClick={sendViaBot}
-                >
-                    Send
-                </button>
-            </div>
+            <input
+                className={Styles.input}
+                placeholder="Paste your bot token here"
+                type="password"
+                value={botToken}
+                onChange={ev => { setBotToken(ev.target.value); setBotConnected(false); }}
+                style={{marginBottom: '0.75rem'}}
+            />
+
+            <button
+                className={Styles.button}
+                disabled={!botToken.trim() || botConnecting}
+                onClick={() => {
+                    setBotConnected(false);
+                    setBotStartedAt(Date.now());
+                }}
+                style={{width: '100%', marginBottom: '0.25rem'}}
+            >
+                {botConnecting ? 'Connecting…' : botConnected ? 'Restart Bot' : 'Start Bot'}
+            </button>
 
             <BotChannelSelector
                 botToken={botToken}
                 channelId={channelId}
                 onChannelChange={setChannelId}
+                startTrigger={botStartedAt}
+                onLoadingChange={setBotConnecting}
+                onConnected={setBotConnected}
             />
-            <p style={{marginTop: '0.25rem', marginBottom: '2rem', color: 'grey', fontSize: 13}}>
+
+            {botConnected && channelId && (
+                <div style={{marginTop: '1rem'}}>
+                    <button
+                        className={Styles.button}
+                        onClick={sendViaBot}
+                        style={{width: '100%'}}
+                    >
+                        Send Message
+                    </button>
+                </div>
+            )}
+
+            <p style={{marginTop: '0.5rem', marginBottom: '2rem', color: 'grey', fontSize: 13}}>
                 Token is stored locally and never sent anywhere except Discord's API.
             </p>
 
