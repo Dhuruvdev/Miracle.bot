@@ -9,6 +9,7 @@ import App from './App'
 import {store} from './state'
 import {Provider} from 'react-redux'
 import { ButtonActionsProvider } from './ButtonActionsContext';
+import { ResponseBuilderProvider } from './ResponseBuilderContext';
 
 const root = createRoot(document.getElementById('root')!);
 
@@ -16,7 +17,9 @@ root.render(
   <StrictMode>
     <Provider store={store}>
       <ButtonActionsProvider>
-        <App />
+        <ResponseBuilderProvider>
+          <App />
+        </ResponseBuilderProvider>
       </ButtonActionsProvider>
     </Provider>
   </StrictMode>,

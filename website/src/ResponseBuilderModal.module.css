@@ -1,0 +1,101 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    z-index: 1000;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+.modal {
+    background: #1e1f22;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 720px;
+    max-height: 100%;
+    overflow: hidden;
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.7);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.2rem 1.6rem;
+    background: #111214;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.closeBtn {
+    background: none;
+    border: none;
+    color: #b5bac1;
+    cursor: pointer;
+    font-size: 1.6rem;
+    padding: 0;
+    line-height: 1;
+    font-family: inherit;
+    &:hover { color: #fff; }
+}
+
+.builderWrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.6rem;
+    background: #2b2d31;
+}
+
+.footer {
+    background: #111214;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1rem 1.6rem;
+    flex-shrink: 0;
+}
+
+.hint {
+    font-size: 1.1rem;
+    color: #6d6f78;
+    margin: 0 0 0.8rem;
+    font-style: italic;
+}
+
+.footerBtns {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.8rem;
+}
+
+.cancelBtn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    color: #b5bac1;
+    padding: 0.7rem 2rem;
+    font-size: 1.3rem;
+    cursor: pointer;
+    font-family: inherit;
+    &:hover { border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+}
+
+.saveBtn {
+    background: #5865f2;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.4), 0 0 20px rgba(88, 101, 242, 0.3);
+    border-radius: 4px;
+    color: #fff;
+    padding: 0.7rem 2rem;
+    font-size: 1.3rem;
+    cursor: pointer;
+    font-family: inherit;
+    &:hover { background: #4752c4; }
+}

@@ -15,7 +15,12 @@ let botState = {
     guilds: [],
     sessionId: null,
     resumeGatewayUrl: null,
+    userId: null,  // bot's own user/application ID
 };
+
+// ── Button action configs (synced from the browser after each send) ───────────
+// { [customId: string]: { steps: InteractionStep[] } }
+let buttonActions = {};
 
 let ws = null;
 let heartbeatTimer = null;
@@ -125,6 +130,7 @@ function gwConnect(token, gatewayUrl = GATEWAY_URL) {
                 if (t === 'READY') {
                     botState.sessionId = d.session_id;
                     botState.resumeGatewayUrl = d.resume_gateway_url;
+                    botState.userId = d.user?.id ?? null;
                     botState.status = 'connected';
                     reconnectAttempts = 0;
                     console.log(`[Gateway] Ready! Bot: ${d.user?.username}#${d.user?.discriminator}`);
@@ -133,6 +139,11 @@ function gwConnect(token, gatewayUrl = GATEWAY_URL) {
                     botState.status = 'connected';
                     reconnectAttempts = 0;
                     console.log('[Gateway] Session resumed');
+                }
+                if (t === 'INTERACTION_CREATE') {
+                    handleInteraction(d).catch(e =>
+                        console.error('[Interaction] Unhandled error:', e.message)
+                    );
                 }
                 break;
 
@@ -210,15 +221,14 @@ function gwDisconnect() {
 // ── Discord REST helper ───────────────────────────────────────────────────────
 async function discordFetch(path, token, options = {}) {
     const isFormData = options.body instanceof FormData;
+    const headers = {};
+    if (token) headers.Authorization = `Bot ${token}`;
+    if (!isFormData) headers['Content-Type'] = 'application/json';
+    Object.assign(headers, options.headers || {});
+
     const res = await fetch(`https://discord.com/api/v10${path}`, {
         ...options,
-        headers: {
-            Authorization: `Bot ${token}`,
-            // Don't set Content-Type for FormData — fetch sets it automatically
-            // with the correct multipart boundary.
-            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-            ...(options.headers || {}),
-        },
+        headers,
     });
     if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -230,7 +240,144 @@ async function discordFetch(path, token, options = {}) {
     return res.status === 204 ? null : res.json();
 }
 
+// ── Interaction handler ───────────────────────────────────────────────────────
+async function respondToInteraction(interactionId, interactionToken, data) {
+    return discordFetch(`/interactions/${interactionId}/${interactionToken}/callback`, null, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+async function handleInteraction(interaction) {
+    const { id, token, type, data, member, user, guild_id, channel_id, message } = interaction;
+
+    if (type !== 3) return;  // only MESSAGE_COMPONENT (button/select) interactions
+    if (!data?.custom_id) return;
+
+    const customId = data.custom_id;
+    const action = buttonActions[customId];
+
+    if (!action || !action.steps?.length) {
+        // No action configured — ACK so Discord doesn't show "interaction failed"
+        await respondToInteraction(id, token, { type: 6 }).catch(e =>
+            console.error('[Interaction] ACK failed:', e.message));
+        return;
+    }
+
+    console.log(`[Interaction] Button "${customId}" clicked — executing ${action.steps.length} step(s)`);
+
+    const userId = member?.user?.id ?? user?.id;
+    const replyStep = action.steps.find(s => s.type === 'reply' || s.type === 'reply_embed');
+
+    // ── Send the primary interaction response ──────────────────────────────────
+    if (replyStep) {
+        let components = [];
+        if (replyStep.embedJson) {
+            try { components = JSON.parse(replyStep.embedJson); } catch {}
+        }
+        // IS_COMPONENTS_V2 flag (32768) when we have v2 components; ephemeral (64) if set
+        const flags = (components.length > 0 ? 32768 : 0) | (replyStep.ephemeral ? 64 : 0);
+        try {
+            await respondToInteraction(id, token, {
+                type: 4,  // CHANNEL_MESSAGE_WITH_SOURCE
+                data: {
+                    content: replyStep.content?.trim() || undefined,
+                    components,
+                    flags,
+                },
+            });
+        } catch (e) {
+            console.error('[Interaction] Reply failed:', e.message, e.discordBody);
+            // Fall back to a plain ACK so Discord doesn't show an error
+            await respondToInteraction(id, token, { type: 6 }).catch(() => {});
+        }
+    } else {
+        // No visible reply — acknowledge the interaction silently
+        await respondToInteraction(id, token, { type: 6 }).catch(e =>
+            console.error('[Interaction] ACK failed:', e.message));
+    }
+
+    // ── Execute remaining side-effect steps ────────────────────────────────────
+    for (const step of action.steps) {
+        if (step === replyStep) continue;
+        try {
+            switch (step.type) {
+                case 'give_role':
+                    if (guild_id && userId && step.roleId) {
+                        await discordFetch(
+                            `/guilds/${guild_id}/members/${userId}/roles/${step.roleId}`,
+                            botState.token,
+                            { method: 'PUT' }
+                        );
+                        console.log(`[Interaction] Gave role ${step.roleId} to ${userId}`);
+                    }
+                    break;
+
+                case 'remove_role':
+                    if (guild_id && userId && step.roleId) {
+                        await discordFetch(
+                            `/guilds/${guild_id}/members/${userId}/roles/${step.roleId}`,
+                            botState.token,
+                            { method: 'DELETE' }
+                        );
+                        console.log(`[Interaction] Removed role ${step.roleId} from ${userId}`);
+                    }
+                    break;
+
+                case 'send_channel':
+                    if (step.channelId) {
+                        await discordFetch(
+                            `/channels/${step.channelId}/messages`,
+                            botState.token,
+                            { method: 'POST', body: JSON.stringify({ content: step.content || '' }) }
+                        );
+                        console.log(`[Interaction] Sent message to channel ${step.channelId}`);
+                    }
+                    break;
+
+                case 'dm_user':
+                    if (userId && step.content) {
+                        const dm = await discordFetch('/users/@me/channels', botState.token, {
+                            method: 'POST',
+                            body: JSON.stringify({ recipient_id: userId }),
+                        });
+                        if (dm?.id) {
+                            await discordFetch(`/channels/${dm.id}/messages`, botState.token, {
+                                method: 'POST',
+                                body: JSON.stringify({ content: step.content }),
+                            });
+                            console.log(`[Interaction] DM'd user ${userId}`);
+                        }
+                    }
+                    break;
+
+                case 'delete_message':
+                    if (message?.id && channel_id) {
+                        await discordFetch(
+                            `/channels/${channel_id}/messages/${message.id}`,
+                            botState.token,
+                            { method: 'DELETE' }
+                        );
+                        console.log(`[Interaction] Deleted message ${message.id}`);
+                    }
+                    break;
+            }
+        } catch (err) {
+            console.error(`[Interaction] Step "${step.type}" failed:`, err.message);
+        }
+    }
+}
+
 // ── Express API ───────────────────────────────────────────────────────────────
+app.post('/api/bot/actions', (req, res) => {
+    const { actions } = req.body || {};
+    if (actions && typeof actions === 'object') {
+        buttonActions = actions;
+        console.log(`[Actions] Registered ${Object.keys(buttonActions).length} button action(s): ${Object.keys(buttonActions).join(', ') || '(none)'}`);
+    }
+    res.json({ ok: true });
+});
+
 app.post('/api/bot/start', async (req, res) => {
     const { token } = req.body || {};
     if (!token || typeof token !== 'string' || !token.trim()) {

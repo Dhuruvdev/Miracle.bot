@@ -313,6 +313,12 @@ function App() {
             const data: any = await res.json().catch(() => null);
             if (res.ok) {
                 setBotResponse({ status: `${res.status} Success` });
+                // Sync button action configs so the server can handle interaction callbacks
+                fetch('/api/bot/actions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ actions: buttonActions }),
+                }).catch(() => {});
             } else {
                 setBotResponse(data || { error: `HTTP ${res.status}` });
             }

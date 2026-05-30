@@ -13,6 +13,7 @@ import {
 } from './ButtonActionsContext';
 import { select_styles } from './Select';
 import Styles from './ActionMenu.module.css';
+import { useResponseBuilder } from './ResponseBuilderContext';
 
 const ALL_TYPES: InteractionStepType[] = [
     'reply',
@@ -77,6 +78,17 @@ function blankStep(type: InteractionStepType): InteractionStep {
 }
 
 /* ── Step Editor ── */
+function embedSummary(embedJson: string | undefined): string {
+    if (!embedJson) return '';
+    try {
+        const parsed = JSON.parse(embedJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            return `${parsed.length} component${parsed.length !== 1 ? 's' : ''} configured`;
+        }
+    } catch {}
+    return '';
+}
+
 function StepEditor({
     initial,
     onSave,
@@ -91,6 +103,7 @@ function StepEditor({
     const [step, setStep] = useState<InteractionStep>(initial);
     const set = (patch: Partial<InteractionStep>) => setStep(prev => ({ ...prev, ...patch }));
     const changeType = (type: InteractionStepType) => setStep({ ...blankStep(type), id: step.id });
+    const openResponseBuilder = useResponseBuilder();
 
     const valid = () => {
         if (step.type === 'give_role' || step.type === 'remove_role') return !!step.roleId?.trim();
@@ -101,6 +114,7 @@ function StepEditor({
     };
 
     const selectedType = TYPE_OPTIONS.find(o => o.value === step.type) ?? null;
+    const summary = embedSummary(step.embedJson);
 
     return (
         <div className={Styles.editor}>
@@ -128,16 +142,28 @@ function StepEditor({
             </>}
 
             {needsEmbed(step.type) && <>
-                <label className={Styles.label}>Components / Embed JSON (optional)</label>
-                <textarea
-                    className={Styles.textarea}
-                    value={step.embedJson || ''}
-                    onChange={e => set({ embedJson: e.target.value })}
-                    placeholder='Paste JSON from the "Generator for programmers" panel'
-                    rows={4}
-                />
+                <label className={Styles.label}>Response layout (optional)</label>
+                {summary && (
+                    <p className={Styles.embedPreview}>✓ {summary}</p>
+                )}
+                <button
+                    type="button"
+                    className={Styles.designBtn}
+                    onClick={() => openResponseBuilder(step.embedJson || '', (json) => set({ embedJson: json }))}
+                >
+                    {summary ? '✏️  Edit Response Layout' : '🧩  Design Response Layout'}
+                </button>
+                {summary && (
+                    <button
+                        type="button"
+                        className={Styles.clearEmbedBtn}
+                        onClick={() => set({ embedJson: '' })}
+                    >
+                        Clear layout
+                    </button>
+                )}
                 <p className={Styles.hint}>
-                    Build your layout in the left panel → copy JSON from the Generator section → paste here.
+                    Use the visual builder to design the container or embed shown when the button is clicked.
                 </p>
             </>}
 
