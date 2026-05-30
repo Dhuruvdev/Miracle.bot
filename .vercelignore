@@ -1,0 +1,14 @@
+node_modules
+.yarn/cache
+.git
+.replit
+.replit_integration_files
+.agents
+.local
+attached_assets
+start-dev.sh
+start.sh
+Dockerfile
+.dockerignore
+README.md
+LICENSE.md

@@ -1,30 +1,25 @@
 const express = require('express');
 const { WebSocket } = require('ws');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 const crypto = require('crypto');
 
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' })); // Components payloads can be large
 
-// ── Session ───────────────────────────────────────────────────────────────────
-const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
-app.use(session({
-    secret: sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-        sameSite: 'lax',
-    },
+// ── Cookie-based session (stateless — works in both Replit and Vercel) ────────
+app.use(cookieSession({
+    name: 'oe_session',
+    keys: [process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')],
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
 }));
 
 // ── OIDC Auth ─────────────────────────────────────────────────────────────────
 const OIDC_ISSUER = 'https://replit.com/oidc';
 let oidcConfig = null;
-const pendingStates = new Map();
 
 async function getOidcConfig() {
     if (oidcConfig) return oidcConfig;
@@ -33,7 +28,7 @@ async function getOidcConfig() {
     return oidcConfig;
 }
 
-// GET /api/login — initiate OIDC flow
+// GET /api/login — initiate OIDC flow (PKCE)
 app.get('/api/login', async (req, res) => {
     try {
         const config = await getOidcConfig();
@@ -41,8 +36,8 @@ app.get('/api/login', async (req, res) => {
         const codeVerifier = crypto.randomBytes(32).toString('base64url');
         const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 
-        pendingStates.set(state, { codeVerifier });
-        setTimeout(() => pendingStates.delete(state), 10 * 60 * 1000);
+        // Store in cookie session so it survives the OAuth redirect (serverless-safe)
+        req.session.pendingAuth = { state, codeVerifier };
 
         const redirectUri = `${req.protocol}://${req.get('host')}/api/callback`;
         const params = new URLSearchParams({
@@ -66,9 +61,11 @@ app.get('/api/login', async (req, res) => {
 app.get('/api/callback', async (req, res) => {
     try {
         const { code, state } = req.query;
-        const pending = pendingStates.get(state);
-        if (!pending) return res.status(400).send('Invalid or expired state. <a href="/api/login">Try again</a>');
-        pendingStates.delete(state);
+        const pending = req.session.pendingAuth;
+        if (!pending || pending.state !== state) {
+            return res.status(400).send('Invalid or expired state. <a href="/api/login">Try again</a>');
+        }
+        req.session.pendingAuth = null;
 
         const config = await getOidcConfig();
         const redirectUri = `${req.protocol}://${req.get('host')}/api/callback`;
@@ -112,12 +109,15 @@ app.get('/api/callback', async (req, res) => {
 
 // GET /api/logout
 app.get('/api/logout', async (req, res) => {
-    req.session.destroy(() => {});
+    const wasUser = !!req.session?.user;
+    req.session = null; // cookie-session: clears the cookie
     try {
-        const config = await getOidcConfig();
-        const postLogout = encodeURIComponent(`${req.protocol}://${req.get('host')}`);
-        if (config.end_session_endpoint) {
-            return res.redirect(`${config.end_session_endpoint}?client_id=${process.env.REPL_ID}&post_logout_redirect_uri=${postLogout}`);
+        if (wasUser) {
+            const config = await getOidcConfig();
+            const postLogout = encodeURIComponent(`${req.protocol}://${req.get('host')}`);
+            if (config.end_session_endpoint) {
+                return res.redirect(`${config.end_session_endpoint}?client_id=${process.env.REPL_ID}&post_logout_redirect_uri=${postLogout}`);
+            }
         }
     } catch { /* ignore */ }
     res.redirect('/');
@@ -628,6 +628,10 @@ app.post('/api/bot/channels/:channelId/messages', async (req, res) => {
     }
 });
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-const PORT = process.env.BOT_SERVER_PORT || 3001;
-app.listen(PORT, () => console.log(`[Server] Bot API running on port ${PORT}`));
+// ── Start (local dev only — Vercel uses module.exports below) ─────────────────
+if (require.main === module) {
+    const PORT = process.env.BOT_SERVER_PORT || 3001;
+    app.listen(PORT, () => console.log(`[Server] Bot API running on port ${PORT}`));
+}
+
+module.exports = app;

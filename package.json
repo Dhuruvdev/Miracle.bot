@@ -2,7 +2,7 @@
     "name": "builders",
     "private": true,
     "scripts": {
-        "build": "cd components-sdk && yarn build && cd ..",
+        "build": "yarn workspace components-sdk build && yarn workspace website build",
         "dev": "cd website && yarn dev"
     },
     "workspaces": {
