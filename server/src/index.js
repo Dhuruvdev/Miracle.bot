@@ -271,9 +271,18 @@ app.get('/api/bot/guilds/:guildId/channels', async (req, res) => {
     if (!botState.token) return res.status(401).json({ error: 'Bot not connected.' });
     try {
         const channels = await discordFetch(`/guilds/${req.params.guildId}/channels`, botState.token);
-        res.json(channels.sort((a, b) => a.position - b.position));
+        if (!Array.isArray(channels)) {
+            console.error('[Channels] Unexpected response:', channels);
+            return res.status(500).json({ error: 'Unexpected response from Discord.' });
+        }
+        const typeCounts = channels.reduce((acc, c) => { acc[c.type] = (acc[c.type] || 0) + 1; return acc; }, {});
+        console.log(`[Channels] guild=${req.params.guildId} total=${channels.length} types=${JSON.stringify(typeCounts)}`);
+        res.json(channels.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)));
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        const status = e.httpStatus || 500;
+        const body   = e.discordBody || { message: e.message };
+        console.error(`[Channels] ✗ HTTP ${status}:`, JSON.stringify(body));
+        res.status(status).json(body);
     }
 });
 

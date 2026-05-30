@@ -89,6 +89,7 @@ function App() {
 
     // On mount: check if bot is already running server-side (survives page refresh)
     useEffect(() => {
+        const savedGuildId = localStorage.getItem('discord.builders__guildId') || '';
         fetch('/api/bot/status')
             .then(r => r.json())
             .then((data: any) => {
@@ -96,6 +97,17 @@ function App() {
                     setGatewayStatus(data.status);
                     if (data.guilds?.length) setBotGuilds(data.guilds);
                     startPolling();
+                    // Re-fetch channels for the previously-selected guild
+                    if (savedGuildId) {
+                        setChLoading(true);
+                        fetch(`/api/bot/guilds/${savedGuildId}/channels`)
+                            .then(r => r.json())
+                            .then((ch: any) => {
+                                if (Array.isArray(ch)) setBotChannels(ch);
+                            })
+                            .catch(() => {})
+                            .finally(() => setChLoading(false));
+                    }
                 }
             })
             .catch(() => {});
@@ -229,6 +241,16 @@ function App() {
             }
             if (data.guilds?.length) setBotGuilds(data.guilds);
             startPolling();
+            // Re-fetch channels for the previously-selected guild (if any)
+            const savedGuildId = localStorage.getItem('discord.builders__guildId') || '';
+            if (savedGuildId) {
+                setChLoading(true);
+                fetch(`/api/bot/guilds/${savedGuildId}/channels`)
+                    .then(r => r.json())
+                    .then((ch: any) => { if (Array.isArray(ch)) setBotChannels(ch); })
+                    .catch(() => {})
+                    .finally(() => setChLoading(false));
+            }
         } catch (e: any) {
             setBotConnectError(e?.message || 'Network error — is the bot server running?');
             setGatewayStatus('error');
