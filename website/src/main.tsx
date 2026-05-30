@@ -8,13 +8,16 @@ import './i18n'
 import App from './App'
 import {store} from './state'
 import {Provider} from 'react-redux'
+import { ButtonActionsProvider } from './ButtonActionsContext';
 
 const root = createRoot(document.getElementById('root')!);
 
 root.render(
   <StrictMode>
     <Provider store={store}>
-      <App />
+      <ButtonActionsProvider>
+        <App />
+      </ButtonActionsProvider>
     </Provider>
   </StrictMode>,
 )

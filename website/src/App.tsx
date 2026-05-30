@@ -1,4 +1,4 @@
-import { Capsule, PassProps } from 'components-sdk';
+import { Capsule, PassProps, Component, ComponentType } from 'components-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { actions, DisplaySliceManager, RootState } from './state';
@@ -15,6 +15,8 @@ import { useRouter } from './useRouter';
 import { Trans, useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { supportedLngs } from '../libs.config';
+import { ActionMenuComponent } from './ActionMenu';
+import { useButtonActions } from './ButtonActionsContext';
 
 
 webhookImplementation.init();
@@ -30,6 +32,31 @@ function getThreadId(webhookUrl: string) {
     }
 }
 
+type ButtonInfo = { label: string; customId: string };
+
+function extractButtons(components: Component[]): ButtonInfo[] {
+    const result: ButtonInfo[] = [];
+    for (const comp of components) {
+        if (comp.type === ComponentType.ACTION_ROW) {
+            const row = comp as any;
+            for (const child of (row.components || [])) {
+                if (child.type === ComponentType.BUTTON && child.custom_id) {
+                    result.push({ label: child.label || child.custom_id, customId: child.custom_id });
+                }
+            }
+        } else if (comp.type === ComponentType.CONTAINER) {
+            result.push(...extractButtons((comp as any).components || []));
+        }
+    }
+    return result;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+    reply: 'Reply with message',
+    ephemeral: 'Ephemeral reply',
+    channel: 'Send to channel',
+};
+
 function App() {
     const dispatch = useDispatch();
     const stateManager = useMemo(() => new DisplaySliceManager(dispatch), [dispatch]);
@@ -42,6 +69,26 @@ function App() {
     const [postTitle, setPostTitle] = useState<string>("");
     useHashRouter();
 
+    const { actions: buttonActions } = useButtonActions();
+
+    const [botToken, setBotToken] = useState<string>(
+        () => localStorage.getItem('discord.builders__botToken') || ''
+    );
+    const [channelId, setChannelId] = useState<string>(
+        () => localStorage.getItem('discord.builders__channelId') || ''
+    );
+    const [botResponse, setBotResponse] = useState<object | null>(null);
+
+    useEffect(() => {
+        const t = setTimeout(() => localStorage.setItem('discord.builders__botToken', botToken), 500);
+        return () => clearTimeout(t);
+    }, [botToken]);
+
+    useEffect(() => {
+        const t = setTimeout(() => localStorage.setItem('discord.builders__channelId', channelId), 500);
+        return () => clearTimeout(t);
+    }, [channelId]);
+
     const setFile = useCallback(webhookImplementation.setFile, []);
     const getFile = useCallback(webhookImplementation.getFile, [])
     const getFileName = useCallback(webhookImplementation.getFileName, [])
@@ -52,7 +99,7 @@ function App() {
         BetterInput,
         EmojiPicker,
         ColorPicker,
-        // ActionMenu,
+        ActionMenu: ActionMenuComponent,
         EmojiShow,
         interactiveDisabled: false,
     }), []);
@@ -116,7 +163,40 @@ function App() {
         dispatch(actions.setWebhookResponse(error_data))
     }
 
+    const sendViaBot = async () => {
+        setBotResponse(null);
+        try {
+            const body = JSON.stringify({ components: state, flags: 32768 });
+            const req = await fetch(
+                `https://discord.com/api/v10/channels/${channelId.trim()}/messages`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bot ${botToken.trim()}`,
+                    },
+                    body,
+                }
+            );
+            const status_code = req.status;
+            if (status_code === 200 || status_code === 201) {
+                setBotResponse({ status: `${status_code} Success` });
+            } else {
+                const error_data = await req.json();
+                setBotResponse(error_data);
+            }
+        } catch (e: any) {
+            setBotResponse({ error: e?.message || 'Network error' });
+        }
+    };
+
     const dialog = useRef<HTMLDialogElement>(null);
+
+    const buttons = useMemo(() => extractButtons(state), [state]);
+    const configuredButtons = useMemo(
+        () => buttons.filter(b => buttonActions[b.customId]),
+        [buttons, buttonActions]
+    );
 
     if (page === '404.not-found') {
         if (!window.location.href.includes('/not-found')) window.location.href = '/not-found';
@@ -124,6 +204,8 @@ function App() {
     }
     
     const { t } = useTranslation('website');
+
+    const canSendViaBot = botToken.trim().length > 0 && channelId.trim().length > 0;
 
     return <div className={Styles.app}>
         {(isDefault && page === '200.home') && <div className={Styles.alert}>
@@ -202,6 +284,82 @@ function App() {
                                     color: '#dd9898'
                                 }}>{JSON.stringify(response, undefined, 4)}</div>}
 
+            {/* ── Bot Connection ── */}
+            <p style={{marginBottom: '0.5rem', marginTop: '3rem'}}>
+                <span style={{fontSize: 16, color: 'white', fontWeight: '500'}}>Connect a Bot</span>
+            </p>
+
+            <p style={{marginBottom: '0.5rem'}}>
+                <span style={{fontSize: 13, color: '#dcddde', fontWeight: '500'}}>Bot Token</span>
+            </p>
+            <div className={Styles.input_pair} style={{marginBottom: '0.75rem'}}>
+                <div>
+                    <input
+                        className={Styles.input}
+                        placeholder="Bot Token"
+                        type="password"
+                        value={botToken}
+                        onChange={ev => setBotToken(ev.target.value)}
+                    />
+                </div>
+                <button
+                    className={Styles.button}
+                    disabled={!canSendViaBot}
+                    onClick={sendViaBot}
+                >
+                    Send
+                </button>
+            </div>
+
+            <p style={{marginBottom: '0.5rem'}}>
+                <span style={{fontSize: 13, color: '#dcddde', fontWeight: '500'}}>Channel ID</span>
+            </p>
+            <input
+                className={Styles.input}
+                placeholder="Channel ID (e.g. 123456789012345678)"
+                type="text"
+                value={channelId}
+                onChange={ev => setChannelId(ev.target.value)}
+            />
+            <p style={{marginTop: '0.5rem', marginBottom: '2rem', color: 'grey', fontSize: 13}}>
+                Sends the message directly to a channel using your bot. Token is stored locally and never sent to any server other than Discord.
+            </p>
+
+            {!!botResponse && <div className={Styles.data}
+                                   style={{marginBottom: '2rem', color: (botResponse as any)?.status ? '#98dd98' : '#dd9898'}}>
+                {JSON.stringify(botResponse, undefined, 4)}
+            </div>}
+
+            {/* ── Button Interactions ── */}
+            {configuredButtons.length > 0 && <>
+                <p style={{marginBottom: '0.75rem', marginTop: '0rem'}}>
+                    <span style={{fontSize: 16, color: 'white', fontWeight: '500'}}>Button Interactions</span>
+                </p>
+                {configuredButtons.map(btn => {
+                    const act = buttonActions[btn.customId];
+                    return <div key={btn.customId} style={{
+                        background: '#292b2f',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 6,
+                        padding: '0.75rem 1rem',
+                        marginBottom: '0.5rem',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: '1rem',
+                    }}>
+                        <div style={{minWidth: 0}}>
+                            <div style={{color: '#fff', fontWeight: 600, fontSize: 13, marginBottom: 2}}>
+                                {btn.label}
+                            </div>
+                            <div style={{color: '#b5bac1', fontSize: 12}}>
+                                {ACTION_LABELS[act.type] || act.type}: &ldquo;{act.content.length > 60 ? act.content.slice(0, 60) + '…' : act.content}&rdquo;
+                            </div>
+                        </div>
+                    </div>;
+                })}
+                <p style={{marginBottom: '2rem'}}/>
+            </>}
 
             <Codegen state={state} page={page} setPage={setPage} />
 
