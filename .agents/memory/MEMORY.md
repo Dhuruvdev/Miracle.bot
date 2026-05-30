@@ -1,0 +1,2 @@
+- [OpenEmbedded auth architecture](openembedded-auth.md) — custom OIDC via native Node.js in plain-JS Express server; no passport/openid-client needed.
+- [Clear-everything Redux bug](clear-everything-bug.md) — shadowed `actions` import was the root cause; fixed by removing duplicate destructuring.

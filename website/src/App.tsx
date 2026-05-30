@@ -12,7 +12,7 @@ import { ColorPicker } from './ColorPicker';
 import { useHashRouter } from './useHashRouter';
 import { Codegen } from './Codegen';
 import { useRouter } from './useRouter';
-import { Trans, useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next'; // Trans used for webhook.codegen
 import i18next from 'i18next';
 import { supportedLngs } from '../libs.config';
 import { ActionMenuComponent } from './ActionMenu';
@@ -67,6 +67,7 @@ function App() {
     useHashRouter();
 
     const { actions: buttonActions } = useButtonActions();
+    // NOTE: do NOT redeclare { actions } from useButtonActions here — it would shadow the Redux actions import
 
     const [botToken, setBotToken] = useState<string>(
         () => localStorage.getItem('discord.builders__botToken') || ''
@@ -145,9 +146,8 @@ function App() {
     const setFile = useCallback(webhookImplementation.setFile, []);
     const getFile = useCallback(webhookImplementation.getFile, [])
     const getFileName = useCallback(webhookImplementation.getFileName, [])
-    const { actions } = useButtonActions();
-    const actionsRef = useRef(actions);
-    actionsRef.current = actions;
+    const actionsRef = useRef(buttonActions);
+    actionsRef.current = buttonActions;
     const passProps = useMemo((): PassProps => ({
         getFile,
         getFileName,
@@ -362,12 +362,6 @@ function App() {
         {(isDefault && page === '200.home') && <div className={Styles.alert}>
             <p>{t('welcome.welcome')}</p>
             <p>{t('welcome.home')}</p>
-
-            <p><Trans t={t} i18nKey={"welcome.github"} components={{
-                b: <b />,
-                br: <br />,
-                a: <a href="https://github.com/StartITBot/discord.builders" target="_blank"/>,
-            }} /></p>
             <p><button onClick={() => {
                 dispatch(actions.setKey({key: ['data'], value: []}));
             }}>{t('welcome.clear')}</button></p>
@@ -410,15 +404,7 @@ function App() {
             </div>
         </div>
         <div className={Styles.json}>
-            <h1>discord.builders — {t('homepage.title')}</h1>
-            <a href="https://github.com/StartITBot/discord.builders" target="_blank"><div className={Styles.badges}>
-                <img alt="Star on GitHub"
-                     src="https://img.shields.io/github/stars/StartITBot/discord.builders?style=for-the-badge&logo=github&label=Star+on+GitHub&color=007ec6" />
-                <img alt="GitHub contributors"
-                     src="https://img.shields.io/github/contributors/StartITBot/discord.builders?style=for-the-badge&color=248045" />
-                <img alt="GitHub commits"
-                     src="https://img.shields.io/github/commit-activity/t/StartITBot/discord.builders?style=for-the-badge&color=248045" />
-            </div></a>
+            <h1 style={{color: '#ffffff'}}>OpenEmbedded — {t('homepage.title')}</h1>
 
             <p style={{marginBottom: '0.5rem', marginTop: '4rem'}}><span style={{fontSize: 16, color: 'white', fontWeight: '500'}}>{t('webhook.title')}</span>{!showThread && <> (<span className={Styles.link} onClick={() => dispatch(actions.setShowThread())}>{t('webhook.thread')}</span>) </>}</p>
             <div className={Styles.input_pair}>
@@ -608,9 +594,7 @@ function App() {
                         <span key={lang} className={Styles.lang} onClick={() => i18next.changeLanguage(lang)}>{lang}</span>
                     ))}
                 </div>
-                <div><Trans t={t} i18nKey={"author"} components={{
-                    a: <a href={"https://startit.bot/?utm_source=discord.builders"} target={"_blank"} />
-                }} /></div>
+                <div style={{color: '#4e5058', fontSize: '1.2rem'}}>© {new Date().getFullYear()} OpenEmbedded</div>
             </div>
         </div>
     </div>

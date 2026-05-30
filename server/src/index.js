@@ -1,8 +1,139 @@
 const express = require('express');
 const { WebSocket } = require('ws');
+const session = require('express-session');
+const crypto = require('crypto');
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' })); // Components payloads can be large
+
+// ── Session ───────────────────────────────────────────────────────────────────
+const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+app.use(session({
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+        sameSite: 'lax',
+    },
+}));
+
+// ── OIDC Auth ─────────────────────────────────────────────────────────────────
+const OIDC_ISSUER = 'https://replit.com/oidc';
+let oidcConfig = null;
+const pendingStates = new Map();
+
+async function getOidcConfig() {
+    if (oidcConfig) return oidcConfig;
+    const res = await fetch(`${OIDC_ISSUER}/.well-known/openid-configuration`);
+    oidcConfig = await res.json();
+    return oidcConfig;
+}
+
+// GET /api/login — initiate OIDC flow
+app.get('/api/login', async (req, res) => {
+    try {
+        const config = await getOidcConfig();
+        const state = crypto.randomBytes(16).toString('hex');
+        const codeVerifier = crypto.randomBytes(32).toString('base64url');
+        const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+
+        pendingStates.set(state, { codeVerifier });
+        setTimeout(() => pendingStates.delete(state), 10 * 60 * 1000);
+
+        const redirectUri = `${req.protocol}://${req.get('host')}/api/callback`;
+        const params = new URLSearchParams({
+            response_type: 'code',
+            client_id: process.env.REPL_ID,
+            redirect_uri: redirectUri,
+            scope: 'openid email profile',
+            state,
+            code_challenge: codeChallenge,
+            code_challenge_method: 'S256',
+            prompt: 'login consent',
+        });
+        res.redirect(`${config.authorization_endpoint}?${params}`);
+    } catch (e) {
+        console.error('[Auth] Login error:', e);
+        res.status(500).send('Authentication error');
+    }
+});
+
+// GET /api/callback — OIDC callback
+app.get('/api/callback', async (req, res) => {
+    try {
+        const { code, state } = req.query;
+        const pending = pendingStates.get(state);
+        if (!pending) return res.status(400).send('Invalid or expired state. <a href="/api/login">Try again</a>');
+        pendingStates.delete(state);
+
+        const config = await getOidcConfig();
+        const redirectUri = `${req.protocol}://${req.get('host')}/api/callback`;
+
+        const tokenRes = await fetch(config.token_endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'authorization_code',
+                client_id: process.env.REPL_ID,
+                code,
+                redirect_uri: redirectUri,
+                code_verifier: pending.codeVerifier,
+            }),
+        });
+
+        const tokens = await tokenRes.json();
+        if (!tokenRes.ok) {
+            console.error('[Auth] Token error:', tokens);
+            return res.status(400).send('Token exchange failed. <a href="/api/login">Try again</a>');
+        }
+
+        const [, rawPayload] = tokens.id_token.split('.');
+        const claims = JSON.parse(Buffer.from(rawPayload, 'base64url').toString('utf8'));
+
+        req.session.user = {
+            id: claims.sub,
+            email: claims.email || null,
+            firstName: claims.first_name || null,
+            lastName: claims.last_name || null,
+            profileImageUrl: claims.profile_image_url || null,
+            expiresAt: claims.exp,
+        };
+
+        res.redirect('/');
+    } catch (e) {
+        console.error('[Auth] Callback error:', e);
+        res.status(500).send('Authentication failed. <a href="/api/login">Try again</a>');
+    }
+});
+
+// GET /api/logout
+app.get('/api/logout', async (req, res) => {
+    req.session.destroy(() => {});
+    try {
+        const config = await getOidcConfig();
+        const postLogout = encodeURIComponent(`${req.protocol}://${req.get('host')}`);
+        if (config.end_session_endpoint) {
+            return res.redirect(`${config.end_session_endpoint}?client_id=${process.env.REPL_ID}&post_logout_redirect_uri=${postLogout}`);
+        }
+    } catch { /* ignore */ }
+    res.redirect('/');
+});
+
+// GET /api/auth/user — return current user (public, checked by frontend)
+app.get('/api/auth/user', (req, res) => {
+    if (!req.session?.user) return res.status(401).json({ message: 'Unauthorized' });
+    res.json(req.session.user);
+});
+
+// ── Auth guard for all remaining /api/* routes ────────────────────────────────
+app.use('/api', (req, res, next) => {
+    if (!req.session?.user) return res.status(401).json({ message: 'Unauthorized' });
+    next();
+});
 
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 const GUILDS_INTENT = 1 << 0;
