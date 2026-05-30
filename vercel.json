@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "yarn build",
+  "buildCommand": "yarn workspace components-sdk build && yarn workspace website build",
   "outputDirectory": "website/dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },
