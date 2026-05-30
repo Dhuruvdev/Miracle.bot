@@ -109,7 +109,7 @@ function CapsuleInnerItem({state, stateKey: stateKeyObj, index, stateManager, sh
         <DragLines draggable={dragDisabled} dragDisabled={dragDisabled} droppableId={droppableId} data={state} stateKey={stateKey} removeKeyParent={removeKeyParent}><MaybeSection type={state.type} showSectionButton={showSectionButton} stateKey={stateKey} stateManager={stateManager} interactiveDisabled={passProps.interactiveDisabled}><>
             <Component actionCallback={ActionMenu != null ? actionCallback : undefined} state={state} stateKey={stateKey} stateManager={stateManager} passProps={passProps} errors={thisErrors}/>
             {showErrors && flattenErrors(thisErrors).map((error, i) => <div key={i} className={CapsuleStyles.error}><b>Error:</b> {error}</div>)}
-            {(!!active && ActionMenu != null) && <ActionMenu closeCallback={closeCallback} customId={active} />}
+            {(active !== null && ActionMenu != null) && <ActionMenu key={active} closeCallback={closeCallback} customId={active} />}
         </></MaybeSection></DragLines>
     </div>
 }

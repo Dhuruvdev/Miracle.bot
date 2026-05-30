@@ -221,7 +221,7 @@ function StringSelectOption({state, stateKey: stateParent, index, stateManager, 
                     onClick={(ev) => {
                         ev.stopPropagation();
                         setOpen(0);
-                        actionCallback(state.value || null);
+                        actionCallback(state.value ?? null);
                     }}
                 >
                     <img src={Action} alt="action" />
@@ -252,7 +252,7 @@ function MenuFirst({state, stateKey, stateManager, setOpen, removeKeyParent, act
     return <>
         {actionCallback != null && <MenuOption src={Action} text={t('actions.add-action')} className={CapsuleStyles.highlight} onClick={(ev) => {
             setOpen(0);
-            actionCallback(state.value || null);
+            actionCallback(state.value ?? null);
             ev.stopPropagation();
         }} />}
 

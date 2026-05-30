@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { Capsule, Component, PassProps } from 'components-sdk';
 import { DisplaySliceManager, RootState } from './state';
@@ -9,12 +9,18 @@ import { EmojiShow } from './EmojiShow';
 import { ColorPicker } from './ColorPicker';
 import { webhookImplementation } from './webhook.impl';
 import Styles from './ResponseBuilderModal.module.css';
+import { ActionMenuComponent } from './ActionMenu';
+import { useButtonActions } from './ButtonActionsContext';
 
 function ModalInner({ onSave, onCancel }: { onSave: (json: string) => void; onCancel: () => void }) {
     const dispatch = useDispatch();
     const state = useSelector((s: RootState) => s.display.data);
     const stateManager = useMemo(() => new DisplaySliceManager(dispatch), [dispatch]);
     const stateKey = useMemo(() => ['data'], []);
+
+    const { actions } = useButtonActions();
+    const actionsRef = useRef(actions);
+    actionsRef.current = actions;
 
     const passProps = useMemo((): PassProps => ({
         getFile: webhookImplementation.getFile,
@@ -24,7 +30,9 @@ function ModalInner({ onSave, onCancel }: { onSave: (json: string) => void; onCa
         EmojiPicker,
         ColorPicker,
         EmojiShow,
+        ActionMenu: ActionMenuComponent,
         interactiveDisabled: false,
+        hasAction: (id: string) => !!actionsRef.current[id],
     }), []);
 
     const handleSave = useCallback(() => {
