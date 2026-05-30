@@ -2,7 +2,7 @@ const express = require('express');
 const { WebSocket } = require('ws');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Components payloads can be large
 
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 const GUILDS_INTENT = 1 << 0;
@@ -219,7 +219,10 @@ async function discordFetch(path, token, options = {}) {
     });
     if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.message || `Discord API error ${res.status}`);
+        const err = new Error(body?.message || `Discord API error ${res.status}`);
+        err.discordBody = body;   // full error payload (includes code, errors{}, message)
+        err.httpStatus  = res.status;
+        throw err;
     }
     return res.status === 204 ? null : res.json();
 }
@@ -276,15 +279,25 @@ app.get('/api/bot/guilds/:guildId/channels', async (req, res) => {
 
 app.post('/api/bot/channels/:channelId/messages', async (req, res) => {
     if (!botState.token) return res.status(401).json({ error: 'Bot not connected.' });
+
+    const channelId = req.params.channelId;
+    const payload   = req.body; // { components, flags }
+
+    console.log(`[Send] → channel ${channelId}  flags=${payload.flags}  components=${payload.components?.length ?? 0}`);
+
     try {
         const result = await discordFetch(
-            `/channels/${req.params.channelId}/messages`,
+            `/channels/${channelId}/messages`,
             botState.token,
-            { method: 'POST', body: JSON.stringify(req.body) }
+            { method: 'POST', body: JSON.stringify(payload) }
         );
+        console.log(`[Send] ✓ Success`);
         res.json(result || { status: 'Success' });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        const status = e.httpStatus || 500;
+        const body   = e.discordBody || { message: e.message };
+        console.error(`[Send] ✗ HTTP ${status}:`, JSON.stringify(body));
+        res.status(status).json(body); // forward Discord's full error — code + errors{}
     }
 });
 
