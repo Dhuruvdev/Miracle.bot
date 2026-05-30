@@ -16,7 +16,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { supportedLngs } from '../libs.config';
 import { ActionMenuComponent } from './ActionMenu';
-import { useButtonActions } from './ButtonActionsContext';
+import { useButtonActions, STEP_LABELS, STEP_ICONS, stepSummary } from './ButtonActionsContext';
 
 
 webhookImplementation.init();
@@ -51,11 +51,6 @@ function extractButtons(components: Component[]): ButtonInfo[] {
     return result;
 }
 
-const ACTION_LABELS: Record<string, string> = {
-    reply: 'Reply with message',
-    ephemeral: 'Ephemeral reply',
-    channel: 'Send to channel',
-};
 
 function App() {
     const dispatch = useDispatch();
@@ -342,20 +337,32 @@ function App() {
                         border: '1px solid rgba(255,255,255,0.08)',
                         borderRadius: 6,
                         padding: '0.75rem 1rem',
-                        marginBottom: '0.5rem',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        gap: '1rem',
+                        marginBottom: '0.75rem',
                     }}>
-                        <div style={{minWidth: 0}}>
-                            <div style={{color: '#fff', fontWeight: 600, fontSize: 13, marginBottom: 2}}>
-                                {btn.label}
-                            </div>
-                            <div style={{color: '#b5bac1', fontSize: 12}}>
-                                {ACTION_LABELS[act.type] || act.type}: &ldquo;{act.content.length > 60 ? act.content.slice(0, 60) + '…' : act.content}&rdquo;
-                            </div>
+                        <div style={{color: '#fff', fontWeight: 600, fontSize: 13, marginBottom: 6}}>
+                            🔘 {btn.label}
                         </div>
+                        {act.steps.map((step, i) => (
+                            <div key={step.id} style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 8,
+                                padding: '5px 0',
+                                borderTop: i > 0 ? '1px solid rgba(255,255,255,0.05)' : undefined,
+                            }}>
+                                <span style={{fontSize: 13, flexShrink: 0}}>{STEP_ICONS[step.type]}</span>
+                                <div style={{minWidth: 0}}>
+                                    <span style={{color: '#b5bac1', fontSize: 12, fontWeight: 600}}>{STEP_LABELS[step.type]}</span>
+                                    {step.ephemeral && <span style={{
+                                        fontSize: 10, background: '#5865f2', color: '#fff',
+                                        borderRadius: 3, padding: '1px 5px', marginLeft: 6,
+                                    }}>ephemeral</span>}
+                                    <div style={{color: '#72767d', fontSize: 11, marginTop: 1, wordBreak: 'break-all'}}>
+                                        {stepSummary(step)}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>;
                 })}
                 <p style={{marginBottom: '2rem'}}/>
