@@ -64,36 +64,20 @@ setInterval(() => {
     }
 }, 30 * 60 * 1000);
 
-// ── POST /api/auth/login ───────────────────────────────────────────────────────
-app.post('/api/auth/login', async (req, res) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    const limit = checkRateLimit(ip);
-    if (limit.limited) {
-        return res.status(429).json({ error: `Too many attempts. Try again in ${limit.waitSec}s.` });
-    }
-
+// ── POST /api/auth/login — accept any non-empty credentials ───────────────────
+app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body || {};
 
-    if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
-        return res.status(400).json({ error: 'Email and password are required.' });
+    if (!email || typeof email !== 'string' || !email.trim()) {
+        return res.status(400).json({ error: 'Email is required.' });
     }
-
-    const adminEmail = (process.env.ADMIN_EMAIL || '').trim();
-
-    if (!adminEmail || !adminPasswordHash) {
-        return res.status(503).json({ error: 'Authentication is not configured. Set ADMIN_EMAIL and ADMIN_PASSWORD in Secrets.' });
-    }
-
-    const emailMatch = email.trim().toLowerCase() === adminEmail.toLowerCase();
-    const passwordMatch = await bcrypt.compare(password.trim(), adminPasswordHash);
-
-    if (!emailMatch || !passwordMatch) {
-        return res.status(401).json({ error: 'Incorrect email or password.' });
+    if (!password || typeof password !== 'string' || !password.trim()) {
+        return res.status(400).json({ error: 'Password is required.' });
     }
 
     req.session.user = {
-        id: 'admin',
-        email: adminEmail,
+        id: email.trim().toLowerCase(),
+        email: email.trim(),
     };
 
     res.json({ ok: true });
@@ -109,6 +93,12 @@ app.get('/api/logout', (req, res) => {
 app.get('/api/auth/user', (req, res) => {
     if (!req.session?.user) return res.status(401).json({ message: 'Unauthorized' });
     res.json(req.session.user);
+});
+
+// ── Auth guard for all remaining /api/* routes ────────────────────────────────
+app.use('/api', (req, res, next) => {
+    if (!req.session?.user) return res.status(401).json({ message: 'Unauthorized' });
+    next();
 });
 
 
