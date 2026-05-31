@@ -111,11 +111,6 @@ app.get('/api/auth/user', (req, res) => {
     res.json(req.session.user);
 });
 
-// ── Auth guard for all remaining /api/* routes ────────────────────────────────
-app.use('/api', (req, res, next) => {
-    if (!req.session?.user) return res.status(401).json({ message: 'Unauthorized' });
-    next();
-});
 
 const GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
 const GUILDS_INTENT = 1 << 0;
