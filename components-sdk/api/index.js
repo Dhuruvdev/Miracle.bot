@@ -10,10 +10,12 @@
 
 const BACKEND_URL = process.env.BACKEND_URL;
 
+let handler;
+
 if (BACKEND_URL) {
     const base = BACKEND_URL.replace(/\/$/, '');
 
-    module.exports = async (req, res) => {
+    handler = async (req, res) => {
         const target = `${base}${req.url}`;
         try {
             const isBodyless = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
@@ -61,5 +63,8 @@ if (BACKEND_URL) {
         }
     };
 } else {
-    module.exports = require('../../server/src/index');
+    const { default: serverApp } = await import('../../server/src/index.js');
+    handler = serverApp;
 }
+
+export default handler;
