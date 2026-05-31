@@ -161,16 +161,6 @@ function App() {
         hasAction: (id: string) => !!actionsRef.current[id],
     }), []);
 
-    const previewPassProps = useMemo((): PassProps => ({
-        getFile,
-        getFileName,
-        setFile,
-        BetterInput,
-        EmojiPicker,
-        ColorPicker,
-        EmojiShow,
-        interactiveDisabled: true,
-    }), []);
 
     useEffect(() => {
         const getData = setTimeout(() => localStorage.setItem("discord.builders__webhookToken", webhookUrl), 1000)
@@ -386,22 +376,6 @@ function App() {
                          errors={errors}
                 />
             </ErrorBoundary>
-            <div className={Styles.livePreviewSection}>
-                <div className={Styles.livePreviewHeader}>
-                    <span className={Styles.livePreviewDot} />
-                    Live Preview
-                </div>
-                <div className={Styles.livePreviewWrap}>
-                    <ErrorBoundary fallback={<></>}>
-                        <Capsule state={state}
-                                 stateManager={stateManager}
-                                 stateKey={stateKey}
-                                 passProps={previewPassProps}
-                                 errors={null}
-                        />
-                    </ErrorBoundary>
-                </div>
-            </div>
         </div>
         <div className={Styles.json}>
             <h1 style={{color: '#ffffff'}}>OpenEmbedded — {t('homepage.title')}</h1>

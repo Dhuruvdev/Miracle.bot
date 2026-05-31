@@ -75,41 +75,6 @@
     min-height: 50vh;
   }
 
-  .livePreviewSection {
-    border-top: 2px solid rgba(0, 0, 0, 0.35);
-    background: #36393f;
-    flex-shrink: 0;
-  }
-
-  .livePreviewHeader {
-    background: #2c2f33;
-    padding: 0.7rem 4rem;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #72767d;
-    text-transform: uppercase;
-    letter-spacing: 0.7px;
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
-    user-select: none;
-  }
-
-  .livePreviewDot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #3ba55d;
-    display: inline-block;
-    flex-shrink: 0;
-    box-shadow: 0 0 6px #3ba55d88;
-  }
-
-  .livePreviewWrap {
-    pointer-events: none;
-    user-select: none;
-  }
   .json {
     grid-area: right;
     padding: 2rem 4rem;
