@@ -22,8 +22,8 @@ app.use(cookieSession({
 let adminPasswordHash = null;
 
 async function initAuth() {
-    const email = process.env.ADMIN_EMAIL;
-    const password = process.env.ADMIN_PASSWORD;
+    const email = (process.env.ADMIN_EMAIL || '').trim();
+    const password = (process.env.ADMIN_PASSWORD || '').trim();
     if (!email || !password) {
         console.warn('[Auth] ⚠️  ADMIN_EMAIL and ADMIN_PASSWORD are not set in environment secrets.');
         console.warn('[Auth] Login will be disabled until both are configured.');
@@ -78,19 +78,14 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminEmail = (process.env.ADMIN_EMAIL || '').trim();
 
     if (!adminEmail || !adminPasswordHash) {
         return res.status(503).json({ error: 'Authentication is not configured. Set ADMIN_EMAIL and ADMIN_PASSWORD in Secrets.' });
     }
 
-    // Constant-time email compare to avoid timing attacks
-    const emailMatch = crypto.timingSafeEqual(
-        Buffer.from(email.trim().toLowerCase()),
-        Buffer.from(adminEmail.trim().toLowerCase())
-    );
-
-    const passwordMatch = await bcrypt.compare(password, adminPasswordHash);
+    const emailMatch = email.trim().toLowerCase() === adminEmail.toLowerCase();
+    const passwordMatch = await bcrypt.compare(password.trim(), adminPasswordHash);
 
     if (!emailMatch || !passwordMatch) {
         return res.status(401).json({ error: 'Incorrect email or password.' });
