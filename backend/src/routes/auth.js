@@ -1,81 +1,35 @@
 const express = require('express');
 const bcrypt   = require('bcryptjs');
 const crypto   = require('crypto');
-const postgres = require('postgres');
 
 const { createToken, consumeToken, pruneExpiredTokens, EXPIRES_MINUTES } = require('../lib/tokens');
-const { sendEmail }             = require('../lib/email');
-const { verificationEmailHtml } = require('../lib/emailTemplate');
+const { sendEmail }              = require('../lib/email');
+const { verificationEmailHtml }  = require('../lib/emailTemplate');
 
 const router = express.Router();
 
-// ── DB singleton ──────────────────────────────────────────────────────────────
-let _sql = null;
-function getSql() {
-    if (_sql) return _sql;
-    const url = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
-    if (!url) return null;
-    _sql = postgres(url, {
-        ssl: process.env.NEON_DATABASE_URL ? 'require' : undefined,
-        max: 5,
-    });
-    return _sql;
-}
+// ── Admin credentials (set once on startup) ──────────────────────────────────
+let adminEmail    = null;
+let adminPassword = null;
 
-// no-op kept for backward compat with index.js
 async function initAuth() {
+    const email    = (process.env.ADMIN_EMAIL    || '').trim();
+    const password = (process.env.ADMIN_PASSWORD || '').trim();
+    if (!email || !password) {
+        console.warn('[Auth] ⚠️  ADMIN_EMAIL and ADMIN_PASSWORD are not set in environment secrets.');
+        console.warn('[Auth] Login will be disabled until both are configured.');
+        return;
+    }
+    adminEmail    = email.toLowerCase();
+    adminPassword = password;
+    console.log(`[Auth] Admin credentials loaded for: ${email} (password length: ${password.length})`);
+
+    // Clean up leftover tokens on startup
     pruneExpiredTokens().catch(() => {});
 }
 
-// ── POST /api/auth/register ───────────────────────────────────────────────────
-router.post('/register', async (req, res) => {
-    const { email, password } = req.body || {};
-
-    if (!email || typeof email !== 'string' || !email.trim())
-        return res.status(400).json({ error: 'Email is required.' });
-    if (!password || typeof password !== 'string' || password.trim().length < 6)
-        return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-
-    const sql = getSql();
-    if (!sql) return res.status(503).json({ error: 'Database not configured.' });
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    try {
-        const existing = await sql`SELECT id FROM users WHERE email = ${normalizedEmail} LIMIT 1`;
-        if (existing.length > 0)
-            return res.status(409).json({ error: 'An account with this email already exists.' });
-
-        const id           = crypto.randomUUID();
-        const passwordHash = await bcrypt.hash(password.trim(), 12);
-        await sql`INSERT INTO users (id, email, password_hash) VALUES (${id}, ${normalizedEmail}, ${passwordHash})`;
-
-        const token = await createToken(normalizedEmail);
-        if (!token) {
-            await sql`UPDATE users SET email_verified = true WHERE id = ${id}`;
-            req.session.user = { id, email: normalizedEmail, provider: 'password' };
-            return res.json({ ok: true, direct: true });
-        }
-
-        const appUrl    = buildAppUrl(req);
-        const verifyUrl = `${appUrl}/verify?token=${token}`;
-        const html      = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES, appUrl });
-        const sent      = await sendEmail({ to: normalizedEmail, subject: 'Verify your OpenEmbedded account', html });
-
-        if (!sent) {
-            await sql`UPDATE users SET email_verified = true WHERE id = ${id}`;
-            req.session.user = { id, email: normalizedEmail, provider: 'password' };
-            return res.json({ ok: true, direct: true });
-        }
-
-        res.json({ ok: true, requiresVerification: true, email: normalizedEmail });
-    } catch (err) {
-        console.error('[Auth] Register error:', err.message);
-        res.status(500).json({ error: 'Registration failed. Please try again.' });
-    }
-});
-
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
+// Verifies credentials, generates a 30-min token, sends verification email.
 router.post('/login', async (req, res) => {
     const { email, password } = req.body || {};
 
@@ -84,64 +38,54 @@ router.post('/login', async (req, res) => {
     if (!password || typeof password !== 'string' || !password.trim())
         return res.status(400).json({ error: 'Password is required.' });
 
-    const sql = getSql();
-    if (!sql) return res.status(503).json({ error: 'Database not configured.' });
+    if (!adminEmail || !adminPassword)
+        return res.status(503).json({ error: 'Login is not configured on this server.' });
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const inputEmail    = email.trim().toLowerCase();
+    const inputPassword = password.trim();
 
-    try {
-        const rows = await sql`SELECT id, password_hash, email_verified FROM users WHERE email = ${normalizedEmail} LIMIT 1`;
+    const emailMatch    = inputEmail === adminEmail;
+    // Timing-safe comparison to prevent timing attacks
+    const passwordMatch = inputPassword.length === adminPassword.length &&
+        crypto.timingSafeEqual(Buffer.from(inputPassword), Buffer.from(adminPassword));
 
-        if (rows.length === 0) {
-            await bcrypt.compare('dummy', '$2a$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.');
-            return res.status(401).json({ error: 'Invalid email or password.' });
-        }
+    console.log(`[Auth] Login attempt for "${inputEmail}" — email match: ${emailMatch}, password match: ${passwordMatch}, pw lengths: req=${inputPassword.length} env=${adminPassword.length}`);
 
-        const user          = rows[0];
-        const passwordMatch = await bcrypt.compare(password.trim(), user.password_hash);
-
-        if (!passwordMatch)
-            return res.status(401).json({ error: 'Invalid email or password.' });
-
-        if (!user.email_verified) {
-            const token = await createToken(normalizedEmail);
-            if (token) {
-                const appUrl    = buildAppUrl(req);
-                const verifyUrl = `${appUrl}/verify?token=${token}`;
-                const html      = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES, appUrl });
-                await sendEmail({ to: normalizedEmail, subject: 'Verify your OpenEmbedded account', html });
-            }
-            return res.status(403).json({
-                error:                'Please verify your email first. Check your inbox.',
-                requiresVerification: true,
-                email:                normalizedEmail,
-            });
-        }
-
-        const token = await createToken(normalizedEmail);
-        if (!token) {
-            req.session.user = { id: user.id, email: normalizedEmail, provider: 'password' };
-            return res.json({ ok: true, direct: true });
-        }
-
-        const appUrl    = buildAppUrl(req);
-        const verifyUrl = `${appUrl}/verify?token=${token}`;
-        const html      = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES, appUrl });
-        const sent      = await sendEmail({ to: normalizedEmail, subject: 'Verify your OpenEmbedded login', html });
-
-        if (!sent) {
-            req.session.user = { id: user.id, email: normalizedEmail, provider: 'password' };
-            return res.json({ ok: true, direct: true });
-        }
-
-        res.json({ ok: true, requiresVerification: true, email: normalizedEmail });
-    } catch (err) {
-        console.error('[Auth] Login error:', err.message);
-        res.status(500).json({ error: 'Login failed. Please try again.' });
+    if (!emailMatch || !passwordMatch) {
+        return res.status(401).json({ error: 'Invalid email or password.' });
     }
+
+    // Credentials valid — generate email verification token
+    const token = await createToken(email.trim().toLowerCase());
+    if (!token) {
+        // DB unavailable — fall back to direct session login
+        console.warn('[Auth] DB unavailable, falling back to direct login');
+        req.session.user = { id: adminEmail, email: email.trim(), provider: 'password' };
+        return res.json({ ok: true, direct: true });
+    }
+
+    const appUrl    = buildAppUrl(req);
+    const verifyUrl = `${appUrl}/verify?token=${token}`;
+
+    const html = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES, appUrl });
+    const sent = await sendEmail({
+        to:      email.trim(),
+        subject: 'Verify your OpenEmbedded login',
+        html,
+    });
+
+    if (!sent) {
+        // Email failed — still allow direct login so the app isn't locked out
+        console.warn('[Auth] Email send failed, falling back to direct login');
+        req.session.user = { id: adminEmail, email: email.trim(), provider: 'password' };
+        return res.json({ ok: true, direct: true });
+    }
+
+    res.json({ ok: true, requiresVerification: true, email: email.trim() });
 });
 
 // ── GET /api/auth/verify ──────────────────────────────────────────────────────
+// Consumes a verification token and creates a session.
 router.get('/verify', async (req, res) => {
     const { token } = req.query;
 
@@ -149,51 +93,41 @@ router.get('/verify', async (req, res) => {
         return res.status(400).json({ error: 'Missing token.' });
 
     const email = await consumeToken(token);
-    if (!email)
+
+    if (!email) {
         return res.status(400).json({ error: 'This link has expired or already been used. Please sign in again.' });
-
-    const sql    = getSql();
-    let   userId = email;
-
-    if (sql) {
-        try {
-            await sql`UPDATE users SET email_verified = true WHERE email = ${email}`;
-            const rows = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
-            if (rows.length > 0) userId = rows[0].id;
-        } catch (err) {
-            console.error('[Auth] Verify DB error:', err.message);
-        }
     }
 
-    req.session.user = { id: userId, email, provider: 'password' };
+    req.session.user = {
+        id:       email,
+        email,
+        provider: 'password',
+    };
+
     console.log(`[Auth] Verified login for: ${email}`);
     res.json({ ok: true });
 });
 
 // ── POST /api/auth/resend ─────────────────────────────────────────────────────
+// Re-sends the verification email (rate-limited to verified credentials only).
 router.post('/resend', async (req, res) => {
     const { email } = req.body || {};
     if (!email || typeof email !== 'string')
         return res.status(400).json({ error: 'Email is required.' });
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const sql = getSql();
+    // Only allow resend for the configured admin email
+    if (email.trim().toLowerCase() !== adminEmail)
+        return res.status(400).json({ error: 'Email not recognised.' });
 
-    if (sql) {
-        const rows = await sql`SELECT id FROM users WHERE email = ${normalizedEmail} LIMIT 1`.catch(() => []);
-        if (rows.length === 0)
-            return res.status(400).json({ error: 'No account found with that email.' });
-    }
-
-    const token = await createToken(normalizedEmail);
+    const token = await createToken(email.trim().toLowerCase());
     if (!token) return res.status(503).json({ error: 'Service temporarily unavailable.' });
 
     const appUrl    = buildAppUrl(req);
     const verifyUrl = `${appUrl}/verify?token=${token}`;
     const html      = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES, appUrl });
-    const sent      = await sendEmail({ to: email.trim(), subject: 'Verify your OpenEmbedded login', html });
 
-    if (!sent) return res.status(503).json({ error: 'Failed to send email. Email service not configured.' });
+    const sent = await sendEmail({ to: email.trim(), subject: 'Verify your OpenEmbedded login', html });
+    if (!sent) return res.status(503).json({ error: 'Failed to send email. Check GMAIL_USER and GMAIL_APP_PASSWORD secrets.' });
 
     res.json({ ok: true });
 });
@@ -302,6 +236,7 @@ router.post('/logout', (req, res) => {
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
 function buildRedirectUri(req) {
     const host  = req.headers['x-forwarded-host'] || req.headers.host;
     const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');

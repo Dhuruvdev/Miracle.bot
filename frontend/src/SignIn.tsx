@@ -2,17 +2,16 @@ import { useState, FormEvent, useEffect } from 'react';
 import Styles from './SignIn.module.css';
 import { InlineAlert } from './InlineAlert';
 
-type View = 'login' | 'register' | 'check-email' | 'verifying' | 'verify-error';
+type View = 'login' | 'check-email' | 'verifying' | 'verify-error';
 
 export function SignIn() {
-    const [view, setView]               = useState<View>('login');
-    const [sentEmail, setSentEmail]     = useState('');
-    const [email, setEmail]             = useState('');
-    const [password, setPassword]       = useState('');
-    const [confirm, setConfirm]         = useState('');
-    const [error, setError]             = useState('');
-    const [loading, setLoading]         = useState(false);
-    const [resent, setResent]           = useState(false);
+    const [view, setView]         = useState<View>('login');
+    const [sentEmail, setSentEmail] = useState('');
+    const [email, setEmail]       = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError]       = useState('');
+    const [loading, setLoading]   = useState(false);
+    const [resent, setResent]     = useState(false);
     const [verifyError, setVerifyError] = useState('');
 
     // On mount — if URL has ?token=..., auto-verify
@@ -22,6 +21,7 @@ export function SignIn() {
         if (!token) return;
 
         setView('verifying');
+        // Clean the token from the URL without a full reload
         window.history.replaceState({}, '', window.location.pathname);
 
         fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`, { credentials: 'include' })
@@ -40,57 +40,43 @@ export function SignIn() {
             });
     }, []);
 
-    function switchView(next: View) {
-        setError('');
-        setPassword('');
-        setConfirm('');
-        setView(next);
-    }
-
-    async function handleLogin(e: FormEvent) {
+    async function handleSubmit(e: FormEvent) {
         e.preventDefault();
         setError('');
-        if (!email.trim() || !password) { setError('Please fill in all fields.'); return; }
 
-        setLoading(true);
-        try {
-            const res  = await fetch('/api/auth/login', {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ email: email.trim(), password }),
-            });
-            const data = await res.json();
-            if (!res.ok) { setError(data.error || 'Login failed. Please try again.'); return; }
-            if (data.direct) { window.location.reload(); return; }
-            if (data.requiresVerification) { setSentEmail(email.trim()); setView('check-email'); return; }
-            window.location.reload();
-        } catch {
-            setError('Unable to connect. Please try again.');
-        } finally {
-            setLoading(false);
+        if (!email.trim() || !password) {
+            setError('Please fill in all fields.');
+            return;
         }
-    }
-
-    async function handleRegister(e: FormEvent) {
-        e.preventDefault();
-        setError('');
-        if (!email.trim() || !password || !confirm) { setError('Please fill in all fields.'); return; }
-        if (password !== confirm) { setError('Passwords do not match.'); return; }
-        if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
 
         setLoading(true);
         try {
-            const res  = await fetch('/api/auth/register', {
+            const res = await fetch('/api/auth/login', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({ email: email.trim(), password }),
             });
+
             const data = await res.json();
-            if (!res.ok) { setError(data.error || 'Registration failed. Please try again.'); return; }
-            if (data.direct) { window.location.reload(); return; }
-            if (data.requiresVerification) { setSentEmail(email.trim()); setView('check-email'); return; }
+
+            if (!res.ok) {
+                setError(data.error || 'Login failed. Please try again.');
+                return;
+            }
+
+            if (data.direct) {
+                // Email service not configured — direct login
+                window.location.reload();
+                return;
+            }
+
+            if (data.requiresVerification) {
+                setSentEmail(email.trim());
+                setView('check-email');
+                return;
+            }
+
             window.location.reload();
         } catch {
             setError('Unable to connect. Please try again.');
@@ -214,95 +200,41 @@ export function SignIn() {
                     <div className={Styles.cardLogoWrap}>
                         <img src="/logo.png" className={Styles.cardLogo} alt="OpenEmbedded" draggable={false} />
                     </div>
+
                     <div className={Styles.inboxIcon}>✉️</div>
                     <h2 className={Styles.inboxTitle}>Check your inbox</h2>
                     <p className={Styles.inboxSubtitle}>
                         We sent a verification link to<br />
                         <strong className={Styles.inboxEmail}>{sentEmail}</strong>
                     </p>
+
                     <div className={Styles.inboxNote}>
                         <span className={Styles.inboxNoteIcon}>⏱️</span>
                         The link expires in <strong>30 minutes</strong>
                     </div>
+
                     {error && (
                         <InlineAlert type="error" message={error} onDismiss={() => setError('')} className={Styles.formAlert} />
                     )}
+
                     {resent && (
                         <InlineAlert type="success" message="Email resent! Check your inbox." onDismiss={() => setResent(false)} className={Styles.formAlert} />
                     )}
-                    <button className={Styles.resendBtn} onClick={handleResend} disabled={loading}>
+
+                    <button
+                        className={Styles.resendBtn}
+                        onClick={handleResend}
+                        disabled={loading}
+                    >
                         {loading ? 'Sending…' : 'Resend email'}
                     </button>
-                    <button className={Styles.backBtn} onClick={() => { switchView('login'); }}>
+
+                    <button
+                        className={Styles.backBtn}
+                        onClick={() => { setView('login'); setError(''); }}
+                    >
                         ← Use a different account
                     </button>
-                </div>
-            </div>
-        );
-    }
-
-    // ── View: register ────────────────────────────────────────────────────────
-    if (view === 'register') {
-        return (
-            <div className={Styles.page}>
-                {background}
-                <div className={Styles.card}>
-                    <div className={Styles.cardLogoWrap}>
-                        <img src="/logo.png" className={Styles.cardLogo} alt="OpenEmbedded" draggable={false} />
-                    </div>
-                    {error && (
-                        <InlineAlert type="error" message={error} onDismiss={() => setError('')} className={Styles.formAlert} />
-                    )}
-                    <form onSubmit={handleRegister} noValidate className={Styles.form}>
-                        <div className={Styles.field}>
-                            <label className={Styles.label} htmlFor="reg-email">EMAIL</label>
-                            <input
-                                id="reg-email"
-                                className={Styles.input}
-                                type="email"
-                                autoComplete="email"
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                                disabled={loading}
-                                required
-                            />
-                        </div>
-                        <div className={Styles.field}>
-                            <label className={Styles.label} htmlFor="reg-password">PASSWORD</label>
-                            <input
-                                id="reg-password"
-                                className={Styles.input}
-                                type="password"
-                                autoComplete="new-password"
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                                disabled={loading}
-                                required
-                            />
-                        </div>
-                        <div className={Styles.field}>
-                            <label className={Styles.label} htmlFor="reg-confirm">CONFIRM PASSWORD</label>
-                            <input
-                                id="reg-confirm"
-                                className={Styles.input}
-                                type="password"
-                                autoComplete="new-password"
-                                value={confirm}
-                                onChange={e => setConfirm(e.target.value)}
-                                disabled={loading}
-                                required
-                            />
-                        </div>
-                        <button className={Styles.loginBtn} type="submit" disabled={loading}>
-                            {loading ? 'Creating account…' : 'Create Account'}
-                        </button>
-                    </form>
-                    <p className={Styles.switchText}>
-                        Already have an account?{' '}
-                        <button className={Styles.switchBtn} onClick={() => switchView('login')} disabled={loading}>
-                            Sign in
-                        </button>
-                    </p>
                 </div>
             </div>
         );
@@ -312,14 +244,22 @@ export function SignIn() {
     return (
         <div className={Styles.page}>
             {background}
+
             <div className={Styles.card}>
                 <div className={Styles.cardLogoWrap}>
                     <img src="/logo.png" className={Styles.cardLogo} alt="OpenEmbedded" draggable={false} />
                 </div>
+
                 {error && (
-                    <InlineAlert type="error" message={error} onDismiss={() => setError('')} className={Styles.formAlert} />
+                    <InlineAlert
+                        type="error"
+                        message={error}
+                        onDismiss={() => setError('')}
+                        className={Styles.formAlert}
+                    />
                 )}
-                <form onSubmit={handleLogin} noValidate className={Styles.form}>
+
+                <form onSubmit={handleSubmit} noValidate className={Styles.form}>
                     <div className={Styles.field}>
                         <label className={Styles.label} htmlFor="email">EMAIL</label>
                         <input
@@ -333,6 +273,7 @@ export function SignIn() {
                             required
                         />
                     </div>
+
                     <div className={Styles.field}>
                         <label className={Styles.label} htmlFor="password">PASSWORD</label>
                         <input
@@ -346,21 +287,18 @@ export function SignIn() {
                             required
                         />
                     </div>
+
                     <button className={Styles.loginBtn} type="submit" disabled={loading}>
                         {loading ? 'Signing in…' : 'Log In'}
                     </button>
                 </form>
-                <p className={Styles.switchText}>
-                    Don't have an account?{' '}
-                    <button className={Styles.switchBtn} onClick={() => switchView('register')} disabled={loading}>
-                        Sign up
-                    </button>
-                </p>
+
                 <div className={Styles.divider}>
                     <span className={Styles.dividerLine} />
                     <span className={Styles.dividerText}>or</span>
                     <span className={Styles.dividerLine} />
                 </div>
+
                 <button
                     className={Styles.discordBtn}
                     type="button"
