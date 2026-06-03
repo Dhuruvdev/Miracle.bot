@@ -65,6 +65,6 @@ if (BACKEND_URL) {
         }
     };
 } else {
-    // Serverless fallback — no Discord bot WebSocket persistence
-    module.exports = require('../src/index');
+    // Serverless mode — lean auth-only app, no WebSocket/bot imports that crash cold starts
+    module.exports = require('./serverless');
 }
