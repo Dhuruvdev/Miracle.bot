@@ -2,7 +2,7 @@
     "name": "openembedded",
     "private": true,
     "scripts": {
-        "build": "yarn workspace components-sdk build && yarn workspace frontend build",
+        "build": "node .yarn/releases/yarn.cjs workspace components-sdk build && node .yarn/releases/yarn.cjs workspace frontend build",
         "dev": "yarn workspace frontend dev"
     },
     "workspaces": {
@@ -12,6 +12,9 @@
             "backend",
             "database"
         ]
+    },
+    "resolutions": {
+        "esbuild": "0.25.12"
     },
     "devDependencies": {
         "prettier": "2.5.1",

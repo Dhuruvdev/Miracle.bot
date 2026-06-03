@@ -1,17 +1,24 @@
 {
   "version": 2,
-  "buildCommand": "yarn workspace components-sdk build && yarn workspace frontend build",
+  "installCommand": "node .yarn/releases/yarn.cjs install",
+  "buildCommand": "bash scripts/build-vercel.sh",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/(.*)",       "destination": "/index.html" }
   ],
   "headers": [
     {
       "source": "/api/:path*",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/(.*\\.(?:png|jpg|jpeg|gif|ico|svg|woff2?))",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
     }
   ]
 }
