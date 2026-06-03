@@ -1,4 +1,4 @@
-import { Capsule, PassProps, Component, ComponentType } from 'components-sdk';
+import { Capsule, PassProps } from 'components-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { actions, DisplaySliceManager, RootState } from './state';
@@ -16,14 +16,10 @@ import { Trans, useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { supportedLngs } from '../libs.config';
 import { ActionMenuComponent } from './ActionMenu';
-import { useButtonActions, STEP_LABELS, STEP_ICONS, stepSummary } from './ButtonActionsContext';
 import { UserProfile } from './UserProfile';
-import { BotConnectCard } from './BotConnectCard';
 import { ApiResponseCard } from './ApiResponseCard';
 import { ErrorFallback } from './ErrorFallback';
 import { useToast } from './Toast';
-type GatewayStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
-
 
 webhookImplementation.init();
 
@@ -36,25 +32,6 @@ function getThreadId(webhookUrl: string) {
     } catch (e) {
         return null;
     }
-}
-
-type ButtonInfo = { label: string; customId: string };
-
-function extractButtons(components: Component[]): ButtonInfo[] {
-    const result: ButtonInfo[] = [];
-    for (const comp of components) {
-        if (comp.type === ComponentType.ACTION_ROW) {
-            const row = comp as any;
-            for (const child of (row.components || [])) {
-                if (child.type === ComponentType.BUTTON && child.custom_id) {
-                    result.push({ label: child.label || child.custom_id, customId: child.custom_id });
-                }
-            }
-        } else if (comp.type === ComponentType.CONTAINER) {
-            result.push(...extractButtons((comp as any).components || []));
-        }
-    }
-    return result;
 }
 
 
@@ -71,92 +48,9 @@ function App() {
     const [postTitle, setPostTitle] = useState<string>("");
     useHashRouter();
 
-    const { actions: buttonActions } = useButtonActions();
-    // NOTE: do NOT redeclare { actions } from useButtonActions here — it would shadow the Redux actions import
-
-    const [botToken, setBotToken] = useState<string>(
-        () => localStorage.getItem('discord.builders__botToken') || ''
-    );
-    const [channelId, setChannelId] = useState<string>(
-        () => localStorage.getItem('discord.builders__channelId') || ''
-    );
-    const [botResponse,       setBotResponse]       = useState<object | null>(null);
-    const [botConnecting,     setBotConnecting]     = useState<boolean>(false);
-    const [botConnectError,   setBotConnectError]   = useState<string | null>(null);
-    const [botGuilds,         setBotGuilds]         = useState<{id:string;name:string;icon:string|null}[]>([]);
-    const [botSelectedGuild,  setBotSelectedGuild]  = useState<string>(
-        () => localStorage.getItem('discord.builders__guildId') || ''
-    );
-    const [botChannels,       setBotChannels]       = useState<{id:string;name:string;type:number;parent_id:string|null;position:number}[]>([]);
-    const [chLoading,         setChLoading]         = useState<boolean>(false);
-    const [gatewayStatus,     setGatewayStatus]     = useState<GatewayStatus>('disconnected');
-    const [gatewayError,      setGatewayError]      = useState<string | null>(null);
-    const [botUser,           setBotUser]           = useState<{id:string;username:string;avatar:string|null;discriminator?:string}|null>(null);
-    const [isSending,         setIsSending]         = useState(false);
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // On mount: check if bot is already running server-side (survives page refresh)
-    useEffect(() => {
-        const savedGuildId = localStorage.getItem('discord.builders__guildId') || '';
-        fetch('/api/bot/status')
-            .then(r => r.json())
-            .then((data: any) => {
-                if (data.status === 'connected' || data.status === 'connecting') {
-                    setGatewayStatus(data.status);
-                    if (data.guilds?.length) setBotGuilds(data.guilds);
-                    if (data.botUser) setBotUser(data.botUser);
-                    startPolling();
-                    // Re-fetch channels for the previously-selected guild
-                    if (savedGuildId) {
-                        setChLoading(true);
-                        fetch(`/api/bot/guilds/${savedGuildId}/channels`)
-                            .then(r => r.json())
-                            .then((ch: any) => {
-                                if (Array.isArray(ch)) setBotChannels(ch);
-                            })
-                            .catch(() => {})
-                            .finally(() => setChLoading(false));
-                    }
-                }
-            })
-            .catch(() => {});
-        return () => { if (pollRef.current) clearInterval(pollRef.current); };
-    }, []);
-
-    const startPolling = () => {
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = setInterval(async () => {
-            try {
-                const res = await fetch('/api/bot/status');
-                const data: any = await res.json();
-                setGatewayStatus(data.status);
-                if (data.error) setGatewayError(data.error);
-                if (data.guilds?.length) setBotGuilds(data.guilds);
-                if (data.botUser) setBotUser(data.botUser);
-                // Stop polling once terminal state reached
-                if (data.status === 'error' || data.status === 'disconnected') {
-                    clearInterval(pollRef.current!);
-                    pollRef.current = null;
-                }
-            } catch { /* network blip — keep polling */ }
-        }, 2000);
-    };
-
-    useEffect(() => {
-        const t = setTimeout(() => localStorage.setItem('discord.builders__botToken', botToken), 500);
-        return () => clearTimeout(t);
-    }, [botToken]);
-
-    useEffect(() => {
-        const t = setTimeout(() => localStorage.setItem('discord.builders__channelId', channelId), 500);
-        return () => clearTimeout(t);
-    }, [channelId]);
-
     const setFile = useCallback(webhookImplementation.setFile, []);
     const getFile = useCallback(webhookImplementation.getFile, [])
     const getFileName = useCallback(webhookImplementation.getFileName, [])
-    const actionsRef = useRef(buttonActions);
-    actionsRef.current = buttonActions;
     const passProps = useMemo((): PassProps => ({
         getFile,
         getFileName,
@@ -167,7 +61,7 @@ function App() {
         ActionMenu: ActionMenuComponent,
         EmojiShow,
         interactiveDisabled: false,
-        hasAction: (id: string) => !!actionsRef.current[id],
+        hasAction: () => false,
     }), []);
 
 
@@ -239,136 +133,7 @@ function App() {
         }
     }
 
-    const connectBot = async () => {
-        const token = botToken.trim();
-        if (!token) return;
-        setBotConnecting(true);
-        setBotConnectError(null);
-        setBotGuilds([]);
-        setBotChannels([]);
-        setChannelId('');
-        setGatewayStatus('connecting');
-        setGatewayError(null);
-
-        try {
-            const res = await fetch('/api/bot/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token }),
-            });
-            const data: any = await res.json();
-            if (!res.ok) {
-                const msg = data.error || 'Failed to start bot.';
-                setBotConnectError(msg);
-                setGatewayStatus('error');
-                toast.error(msg, 'Bot connection failed');
-                return;
-            }
-            if (data.guilds?.length) setBotGuilds(data.guilds);
-            toast.info('Connecting to Discord Gateway…', 'Bot starting');
-            startPolling();
-            const savedGuildId = localStorage.getItem('discord.builders__guildId') || '';
-            if (savedGuildId) {
-                setChLoading(true);
-                fetch(`/api/bot/guilds/${savedGuildId}/channels`)
-                    .then(r => r.json())
-                    .then((ch: any) => { if (Array.isArray(ch)) setBotChannels(ch); })
-                    .catch(() => {})
-                    .finally(() => setChLoading(false));
-            }
-        } catch (e: any) {
-            const msg = e?.message || 'Network error — is the bot server running?';
-            setBotConnectError(msg);
-            setGatewayStatus('error');
-            toast.error(msg, 'Bot connection failed');
-        } finally {
-            setBotConnecting(false);
-        }
-    };
-
-    const disconnectBot = async () => {
-        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-        setGatewayStatus('disconnected');
-        setGatewayError(null);
-        setBotGuilds([]);
-        setBotChannels([]);
-        setBotUser(null);
-        fetch('/api/bot/stop', { method: 'POST' }).catch(() => {});
-    };
-
-    const selectGuild = async (guildId: string) => {
-        setBotSelectedGuild(guildId);
-        localStorage.setItem('discord.builders__guildId', guildId);
-        setBotChannels([]);
-        setChannelId('');
-        if (!guildId) return;
-        setChLoading(true);
-        try {
-            const res = await fetch(`/api/bot/guilds/${guildId}/channels`);
-            const data: any = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to load channels.');
-            setBotChannels(data);
-        } catch (e: any) {
-            const msg = e?.message || 'Failed to load channels.';
-            toast.error(msg, 'Channel load failed');
-        } finally {
-            setChLoading(false);
-        }
-    };
-
-    const sendViaBot = async () => {
-        setBotResponse(null);
-        setIsSending(true);
-        try {
-            const fileNames = webhookImplementation.scrapFiles(state);
-            const attachments: { name: string; data: string; type: string }[] = [];
-            for (const name of fileNames) {
-                const blob: Blob | undefined = window.uploadedFiles?.[name];
-                if (blob) {
-                    const base64 = await new Promise<string>((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-                        reader.onerror = reject;
-                        reader.readAsDataURL(blob);
-                    });
-                    attachments.push({ name, data: base64, type: blob.type || 'application/octet-stream' });
-                }
-            }
-
-            const res = await fetch(`/api/bot/channels/${channelId.trim()}/messages`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ components: state, flags: 32768, attachments }),
-            });
-            const data: any = await res.json().catch(() => null);
-            if (res.ok) {
-                setBotResponse(null);
-                toast.success('Message sent to Discord', 'Sent via bot');
-                fetch('/api/bot/actions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ actions: buttonActions }),
-                }).catch(() => {});
-            } else {
-                setBotResponse(data || { error: `HTTP ${res.status}` });
-                toast.error(data?.message || `HTTP ${res.status}`, 'Send failed');
-            }
-        } catch (e: any) {
-            const msg = e?.message || 'Network error';
-            setBotResponse({ error: msg });
-            toast.error(msg, 'Send failed');
-        } finally {
-            setIsSending(false);
-        }
-    };
-
     const dialog = useRef<HTMLDialogElement>(null);
-
-    const buttons = useMemo(() => extractButtons(state), [state]);
-    const configuredButtons = useMemo(
-        () => buttons.filter(b => buttonActions[b.customId]),
-        [buttons, buttonActions]
-    );
 
     if (page === '404.not-found') {
         if (!window.location.href.includes('/not-found')) window.location.href = '/not-found';
@@ -446,82 +211,6 @@ function App() {
                     onDismiss={() => dispatch(actions.setWebhookResponse(null))}
                 />
             )}
-
-            {/* ── Bot Connection Card ── */}
-            <BotConnectCard
-                botToken={botToken}
-                setBotToken={t => {
-                    setBotToken(t);
-                    setBotGuilds([]);
-                    setBotConnectError(null);
-                    setGatewayError(null);
-                }}
-                gatewayStatus={gatewayStatus}
-                botConnecting={botConnecting}
-                botConnectError={botConnectError}
-                gatewayError={gatewayError}
-                onConnect={connectBot}
-                onDisconnect={disconnectBot}
-                onClearError={() => { setBotConnectError(null); setGatewayError(null); }}
-                botUser={botUser}
-                guilds={botGuilds}
-                channels={botChannels}
-                selectedGuildId={botSelectedGuild}
-                channelId={channelId}
-                chLoading={chLoading}
-                onGuildChange={selectGuild}
-                onChannelChange={id => {
-                    setChannelId(id);
-                    localStorage.setItem('discord.builders__channelId', id);
-                }}
-                onSend={sendViaBot}
-                sending={isSending}
-                botResponse={botResponse}
-                onClearResponse={() => setBotResponse(null)}
-            />
-
-            {/* ── Button Interactions ── */}
-            {configuredButtons.length > 0 && <>
-                <p style={{marginBottom: '0.75rem', marginTop: '0rem'}}>
-                    <span style={{fontSize: 16, color: 'white', fontWeight: '500'}}>Button Interactions</span>
-                </p>
-                {configuredButtons.map(btn => {
-                    const act = buttonActions[btn.customId];
-                    return <div key={btn.customId} style={{
-                        background: '#292b2f',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 6,
-                        padding: '0.75rem 1rem',
-                        marginBottom: '0.75rem',
-                    }}>
-                        <div style={{color: '#fff', fontWeight: 600, fontSize: 13, marginBottom: 6}}>
-                            🔘 {btn.label}
-                        </div>
-                        {act.steps.map((step, i) => (
-                            <div key={step.id} style={{
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: 8,
-                                padding: '5px 0',
-                                borderTop: i > 0 ? '1px solid rgba(255,255,255,0.05)' : undefined,
-                            }}>
-                                <span style={{fontSize: 13, flexShrink: 0}}>{STEP_ICONS[step.type]}</span>
-                                <div style={{minWidth: 0}}>
-                                    <span style={{color: '#b5bac1', fontSize: 12, fontWeight: 600}}>{STEP_LABELS[step.type]}</span>
-                                    {step.ephemeral && <span style={{
-                                        fontSize: 10, background: '#5865f2', color: '#fff',
-                                        borderRadius: 3, padding: '1px 5px', marginLeft: 6,
-                                    }}>ephemeral</span>}
-                                    <div style={{color: '#72767d', fontSize: 11, marginTop: 1, wordBreak: 'break-all'}}>
-                                        {stepSummary(step)}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>;
-                })}
-                <p style={{marginBottom: '2rem'}}/>
-            </>}
 
             <Codegen state={state} page={page} setPage={setPage} />
 
