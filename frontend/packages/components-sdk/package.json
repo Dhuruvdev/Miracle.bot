@@ -42,7 +42,8 @@
   },
   "files": [
     "dist",
-    "dist/components-sdk.css"
+    "dist/components-sdk.css",
+    "src/icons"
   ],
   "main": "./dist/components-sdk.umd.js",
   "module": "./dist/components-sdk.es.js",
@@ -55,6 +56,7 @@
     "./components-sdk.css": {
       "import": "./dist/components-sdk.css",
       "require": "./dist/components-sdk.css"
-    }
+    },
+    "./icons/*": "./src/icons/*"
   }
 }

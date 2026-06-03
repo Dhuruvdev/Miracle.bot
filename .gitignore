@@ -8,7 +8,9 @@ node_modules/
 dist/
 build/
 .vite/
-.yarn/
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
 
 # Compiled Java class files
 *.class
