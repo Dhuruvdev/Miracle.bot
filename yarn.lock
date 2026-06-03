@@ -2358,6 +2358,7 @@ __metadata:
   dependencies:
     bcryptjs: "npm:^3.0.3"
     cookie-session: "npm:^2.1.0"
+    database: "workspace:*"
     drizzle-orm: "npm:^0.43.1"
     express: "npm:^4.18.2"
     postgres: "npm:^3.4.5"
@@ -2791,7 +2792,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"database@workspace:database":
+"database@workspace:*, database@workspace:database":
   version: 0.0.0-use.local
   resolution: "database@workspace:database"
   dependencies:

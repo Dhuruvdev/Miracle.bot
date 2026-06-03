@@ -1,24 +1,20 @@
 /**
  * backend/src/lib/db.js
  *
- * Drizzle ORM client for the backend.  Mirrors the canonical table definitions
- * in database/schema.ts — keep them in sync when schema changes.
+ * Drizzle ORM client for the backend.  Imports the canonical table definitions
+ * from the shared `database` workspace package — no duplicate schema definitions.
  *
  * Gracefully degrades when DATABASE_URL is not configured: all DB calls
  * become no-ops and the in-memory fallback is used automatically.
  */
-const { drizzle }               = require('drizzle-orm/postgres-js');
-const postgres                  = require('postgres');
-const { pgTable, text, jsonb, timestamp } = require('drizzle-orm/pg-core');
-const { eq }                    = require('drizzle-orm');
+const { drizzle } = require('drizzle-orm/postgres-js');
+const postgres     = require('postgres');
+const { eq }       = require('drizzle-orm');
 
-// ── Table: button_actions ─────────────────────────────────────────────────────
-// Maps a Discord component custom_id → ordered list of action steps.
-const buttonActions = pgTable('button_actions', {
-    customId:  text('custom_id').primaryKey(),
-    steps:     jsonb('steps').notNull().$default(() => []),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+// Import shared schema from the database workspace (compiled CJS build).
+// Use the /schema sub-export so we don't trigger the DATABASE_URL guard in
+// database/index.ts — the backend manages its own graceful-degradation logic.
+const { buttonActions } = require('database/schema');
 
 // ── DB client (lazy init) ─────────────────────────────────────────────────────
 let _db = null;

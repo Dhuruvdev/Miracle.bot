@@ -14,19 +14,19 @@ import Styles from './ActionMenu.module.css';
 import { useResponseBuilder } from './ResponseBuilderContext';
 
 /* ── Icon imports (same icons used by CapsuleButton) ── */
-import TextDisplayIcon  from '../../components-sdk/src/icons/TextDisplay.svg';
-import ContainerIcon    from '../../components-sdk/src/icons/Container.svg';
-import DefaultActiveIcon from '../../components-sdk/src/icons/DefaultActive.svg';
-import LockActiveIcon   from '../../components-sdk/src/icons/LockActive.svg';
-import ActionIcon       from '../../components-sdk/src/icons/Action.svg';
-import EditIcon         from '../../components-sdk/src/icons/Edit.svg';
-import TrashIcon        from '../../components-sdk/src/icons/Trash.svg';
-import ButtonIconSvg    from '../../components-sdk/src/icons/Button.svg';
-import ButtonLinkIcon   from '../../components-sdk/src/icons/ButtonLink.svg';
-import MediaGalleryIcon from '../../components-sdk/src/icons/MediaGallery.svg';
-import UploadIcon       from '../../components-sdk/src/icons/Upload.svg';
-import SeparatorIcon    from '../../components-sdk/src/icons/Separator.svg';
-import SelectIcon       from '../../components-sdk/src/icons/Select.svg';
+import TextDisplayIcon  from 'components-sdk/icons/TextDisplay.svg';
+import ContainerIcon    from 'components-sdk/icons/Container.svg';
+import DefaultActiveIcon from 'components-sdk/icons/DefaultActive.svg';
+import LockActiveIcon   from 'components-sdk/icons/LockActive.svg';
+import ActionIcon       from 'components-sdk/icons/Action.svg';
+import EditIcon         from 'components-sdk/icons/Edit.svg';
+import TrashIcon        from 'components-sdk/icons/Trash.svg';
+import ButtonIconSvg    from 'components-sdk/icons/Button.svg';
+import ButtonLinkIcon   from 'components-sdk/icons/ButtonLink.svg';
+import MediaGalleryIcon from 'components-sdk/icons/MediaGallery.svg';
+import UploadIcon       from 'components-sdk/icons/Upload.svg';
+import SeparatorIcon    from 'components-sdk/icons/Separator.svg';
+import SelectIcon       from 'components-sdk/icons/Select.svg';
 
 /* ── Action type → icon mapping ── */
 const ACTION_ICONS: Record<InteractionStepType, string> = {

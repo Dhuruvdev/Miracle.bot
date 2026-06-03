@@ -19,8 +19,12 @@ export default defineConfig(({command, mode}) => ({
     resolve: (command === 'serve' && mode === 'development') ? {
         // Make library auto-reload only on yarn dev
         alias: [
-            // .* is to not double import css files
-            {find: /^components-sdk.*$/, replacement: resolve(__dirname, './packages/components-sdk/src')},
+            // Strip the redundant /src/ prefix so `components-sdk/src/polyfills/X`
+            // resolves correctly to the sdk src dir without doubling the path.
+            {find: /^components-sdk\/src(.*)$/, replacement: `${resolve(__dirname, './packages/components-sdk/src')}$1`},
+            // All other `components-sdk/...` sub-paths (icons, css, etc.) get
+            // their suffix preserved and routed into the sdk src dir.
+            {find: /^components-sdk(.*)$/, replacement: `${resolve(__dirname, './packages/components-sdk/src')}$1`},
         ],
     } : undefined,
     css: {
