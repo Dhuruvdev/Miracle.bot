@@ -8,9 +8,9 @@ const { verificationEmailHtml }  = require('../lib/emailTemplate');
 
 const router = express.Router();
 
-// ── Admin credential hash (set once on startup) ───────────────────────────────
-let adminEmail        = null;
-let adminPasswordHash = null;
+// ── Admin credentials (set once on startup) ──────────────────────────────────
+let adminEmail    = null;
+let adminPassword = null;
 
 async function initAuth() {
     const email    = (process.env.ADMIN_EMAIL    || '').trim();
@@ -20,9 +20,9 @@ async function initAuth() {
         console.warn('[Auth] Login will be disabled until both are configured.');
         return;
     }
-    adminEmail        = email.toLowerCase();
-    adminPasswordHash = await bcrypt.hash(password, 12);
-    console.log(`[Auth] Admin credentials loaded for: ${email}`);
+    adminEmail    = email.toLowerCase();
+    adminPassword = password;
+    console.log(`[Auth] Admin credentials loaded for: ${email} (password length: ${password.length})`);
 
     // Clean up leftover tokens on startup
     pruneExpiredTokens().catch(() => {});
@@ -38,16 +38,20 @@ router.post('/login', async (req, res) => {
     if (!password || typeof password !== 'string' || !password.trim())
         return res.status(400).json({ error: 'Password is required.' });
 
-    if (!adminEmail || !adminPasswordHash)
+    if (!adminEmail || !adminPassword)
         return res.status(503).json({ error: 'Login is not configured on this server.' });
 
-    const emailMatch    = email.trim().toLowerCase() === adminEmail;
-    const passwordMatch = await bcrypt.compare(password.trim(), adminPasswordHash);
+    const inputEmail    = email.trim().toLowerCase();
+    const inputPassword = password.trim();
 
-    console.log(`[Auth] Login attempt — email match: ${emailMatch}, password match: ${passwordMatch}`);
+    const emailMatch    = inputEmail === adminEmail;
+    // Timing-safe comparison to prevent timing attacks
+    const passwordMatch = inputPassword.length === adminPassword.length &&
+        crypto.timingSafeEqual(Buffer.from(inputPassword), Buffer.from(adminPassword));
+
+    console.log(`[Auth] Login attempt for "${inputEmail}" — email match: ${emailMatch}, password match: ${passwordMatch}, pw lengths: req=${inputPassword.length} env=${adminPassword.length}`);
 
     if (!emailMatch || !passwordMatch) {
-        await bcrypt.compare('dummy', '$2a$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
         return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
