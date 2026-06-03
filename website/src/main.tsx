@@ -23,7 +23,7 @@ function AuthGate() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: '#292a2c',
+                background: '#202226',
             }}>
                 <div style={{ position: 'relative', width: '6rem', height: '6rem' }}>
                     {/* Static track ring */}
@@ -31,7 +31,7 @@ function AuthGate() {
                         position: 'absolute',
                         inset: 0,
                         borderRadius: '50%',
-                        border: '8px solid rgba(87,88,230,0.2)',
+                        border: '8px solid rgba(88,101,242,0.2)',
                     }} />
                     {/* Spinning bold arc */}
                     <div style={{
@@ -39,8 +39,8 @@ function AuthGate() {
                         inset: 0,
                         borderRadius: '50%',
                         border: '8px solid transparent',
-                        borderTopColor: '#5758e6',
-                        borderRightColor: '#5758e6',
+                        borderTopColor: '#5865F2',
+                        borderRightColor: '#5865F2',
                         animation: 'oe-spin 0.9s linear infinite',
                     }} />
                 </div>
