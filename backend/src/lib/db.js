@@ -21,9 +21,10 @@ let _db = null;
 
 function getDb() {
     if (_db) return _db;
-    if (!process.env.DATABASE_URL) return null;
+    const dbUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
+    if (!dbUrl) return null;
     try {
-        const client = postgres(process.env.DATABASE_URL, { max: 5 });
+        const client = postgres(dbUrl, { max: 5 });
         _db = drizzle(client);
         return _db;
     } catch (err) {

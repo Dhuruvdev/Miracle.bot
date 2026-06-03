@@ -10,8 +10,9 @@ let _sql = null;
 
 function getSql() {
     if (_sql) return _sql;
-    if (!process.env.DATABASE_URL) return null;
-    _sql = postgres(process.env.DATABASE_URL, { max: 3 });
+    const dbUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
+    if (!dbUrl) return null;
+    _sql = postgres(dbUrl, { max: 3 });
     return _sql;
 }
 
