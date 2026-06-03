@@ -55,24 +55,26 @@
 /* Logo top-left */
 .logo {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 1.6rem;
+    left: 1.6rem;
     z-index: 10;
     pointer-events: none;
     user-select: none;
     line-height: 0;
 }
 
+/* Crop container — clips the black padding from the PNG */
 .logoWrap {
-    display: flex;
-    align-items: center;
+    overflow: hidden;
+    height: 50px;
+    width: 240px;
 }
 
 .logoImg {
     display: block;
-    height: 220px;
+    height: 190px;
     width: auto;
-    max-width: 440px;
+    margin-top: -68px;
 }
 
 /* Login card */
@@ -81,7 +83,7 @@
     z-index: 10;
     background: #2f3136;
     border-radius: 5px;
-    padding: 3.2rem 3.2rem 2.8rem;
+    padding: 2.4rem 3.2rem 2.4rem;
     width: 100%;
     max-width: 47rem;
     margin: 2rem;
@@ -91,12 +93,19 @@
     align-items: center;
 }
 
+/* Crop container for logo inside card */
+.cardLogoWrap {
+    overflow: hidden;
+    height: 56px;
+    width: 280px;
+    margin-bottom: 1.6rem;
+}
+
 .cardLogo {
     display: block;
-    height: 220px;
+    height: 210px;
     width: auto;
-    max-width: 440px;
-    margin: -2rem auto 0.4rem;
+    margin-top: -75px;
 }
 
 .error {

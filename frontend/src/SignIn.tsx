@@ -97,7 +97,9 @@ export function SignIn() {
 
             {/* Login card */}
             <div className={Styles.card}>
-                <img src="/logo.png" className={Styles.cardLogo} alt="OpenEmbedded" draggable={false} />
+                <div className={Styles.cardLogoWrap}>
+                    <img src="/logo.png" className={Styles.cardLogo} alt="OpenEmbedded" draggable={false} />
+                </div>
 
                 {error && (
                     <InlineAlert
