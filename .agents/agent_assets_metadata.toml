@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "M8vP43pGKrsEjcKF0_UgK"
+uri = "file://OpenEmbedded.md"
+type = "text"
+title = "OpenEmbedded.md — Project Bible"
