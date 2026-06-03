@@ -1,31 +1,41 @@
-FROM node:22.20-alpine3.22 as build-step
+FROM node:22.20-alpine3.22 AS build
 
 WORKDIR /app
 
-# Env setup
+# Copy manifests first for layer caching
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY frontend/package.json ./frontend/
+COPY frontend/packages/components-sdk/package.json ./frontend/packages/components-sdk/
+COPY backend/package.json ./backend/
+COPY database/package.json ./database/
 
-COPY package.json yarn.lock .yarnrc.yml /app/
-COPY components-sdk/package.json /app/components-sdk/
-COPY website/package.json /app/website/
+RUN corepack enable && yarn install --immutable
 
-RUN <<EOF
-corepack enable
-yarn install --immutable
-EOF
+# Copy source and build
+COPY frontend ./frontend
+COPY backend  ./backend
+COPY database ./database
 
-COPY components-sdk /app/components-sdk
-COPY website /app/website
+RUN yarn workspace components-sdk build && yarn workspace frontend build
 
-#EXPOSE 8080
-#ENTRYPOINT ["yarn"]
-#CMD ["dev", "--host", "0.0.0.0", "--port", "8080", "--strictPort"]
+# ── Production image ──────────────────────────────────────────────────────────
+FROM node:22.20-alpine3.22
 
-CMD ["yarn", "build"]
+WORKDIR /app
 
-FROM nginx
-COPY --from=build-step /app/website/dist /usr/share/nginx/html
-COPY --from=build-step /app/website/dist/nginx.conf /etc/nginx/conf.d/default.conf
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY backend/package.json ./backend/
+COPY database/package.json ./database/
 
-EXPOSE 80
-STOPSIGNAL SIGTERM
-CMD ["nginx", "-g", "daemon off;"]
+RUN corepack enable && yarn workspaces focus backend database --production 2>/dev/null || yarn install --immutable
+
+COPY backend  ./backend
+COPY database ./database
+COPY --from=build /app/frontend/dist ./frontend/dist
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
+EXPOSE 8080
+
+CMD ["node", "backend/src/index.js"]

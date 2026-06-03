@@ -40,6 +40,7 @@ localPort = 5000
 externalPort = 80
 
 [deployment]
-deploymentTarget = "static"
-build = ["bash", "-c", "node /tmp/yarn4.js workspace website build"]
+deploymentTarget = "vm"
+build = ["bash", "-c", "yarn workspace components-sdk build && yarn workspace frontend build"]
 publicDir = "website/dist"
+run = ["node", "backend/src/index.js"]
