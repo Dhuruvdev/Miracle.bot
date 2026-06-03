@@ -154,6 +154,12 @@ router.get('/user', (req, res) => {
     res.json(req.session.user);
 });
 
+// ── POST /api/auth/logout ─────────────────────────────────────────────────────
+router.post('/logout', (req, res) => {
+    req.session = null;
+    res.json({ ok: true });
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function buildRedirectUri(req) {

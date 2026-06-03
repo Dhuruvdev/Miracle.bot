@@ -17,7 +17,6 @@ import i18next from 'i18next';
 import { supportedLngs } from '../libs.config';
 import { ActionMenuComponent } from './ActionMenu';
 import { useButtonActions, STEP_LABELS, STEP_ICONS, stepSummary } from './ButtonActionsContext';
-import { BotChannelSelector } from './BotChannelSelector';
 import { UserProfile } from './UserProfile';
 import { BotCard } from './BotCard';
 type GatewayStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -88,6 +87,8 @@ function App() {
     const [chLoading,         setChLoading]         = useState<boolean>(false);
     const [gatewayStatus,     setGatewayStatus]     = useState<GatewayStatus>('disconnected');
     const [gatewayError,      setGatewayError]      = useState<string | null>(null);
+    const [botUser,           setBotUser]           = useState<{id:string;username:string;avatar:string|null;discriminator?:string}|null>(null);
+    const [isSending,         setIsSending]         = useState(false);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // On mount: check if bot is already running server-side (survives page refresh)
@@ -99,6 +100,7 @@ function App() {
                 if (data.status === 'connected' || data.status === 'connecting') {
                     setGatewayStatus(data.status);
                     if (data.guilds?.length) setBotGuilds(data.guilds);
+                    if (data.botUser) setBotUser(data.botUser);
                     startPolling();
                     // Re-fetch channels for the previously-selected guild
                     if (savedGuildId) {
@@ -126,6 +128,7 @@ function App() {
                 setGatewayStatus(data.status);
                 if (data.error) setGatewayError(data.error);
                 if (data.guilds?.length) setBotGuilds(data.guilds);
+                if (data.botUser) setBotUser(data.botUser);
                 // Stop polling once terminal state reached
                 if (data.status === 'error' || data.status === 'disconnected') {
                     clearInterval(pollRef.current!);
@@ -272,6 +275,7 @@ function App() {
         setGatewayError(null);
         setBotGuilds([]);
         setBotChannels([]);
+        setBotUser(null);
         fetch('/api/bot/stop', { method: 'POST' }).catch(() => {});
     };
 
@@ -296,6 +300,7 @@ function App() {
 
     const sendViaBot = async () => {
         setBotResponse(null);
+        setIsSending(true);
         try {
             const fileNames = webhookImplementation.scrapFiles(state);
             const attachments: { name: string; data: string; type: string }[] = [];
@@ -331,6 +336,8 @@ function App() {
             }
         } catch (e: any) {
             setBotResponse({ error: e?.message || 'Network error' });
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -380,7 +387,10 @@ function App() {
             </ErrorBoundary>
         </div>
         <div className={Styles.json}>
-            <h1 style={{color: '#ffffff'}}>OpenEmbedded — {t('homepage.title')}</h1>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem'}}>
+                <h1 style={{color: '#ffffff', margin: 0}}>OpenEmbedded — {t('homepage.title')}</h1>
+                <UserProfile />
+            </div>
 
             <p style={{marginBottom: '0.5rem', marginTop: '4rem'}}><span style={{fontSize: 16, color: 'white', fontWeight: '500'}}>{t('webhook.title')}</span>{!showThread && <> (<span className={Styles.link} onClick={() => dispatch(actions.setShowThread())}>{t('webhook.thread')}</span>) </>}</p>
             <div className={Styles.input_pair}>
@@ -479,43 +489,30 @@ function App() {
                 </p>
             )}
 
-            {gatewayStatus === 'connected' && (
-                <p style={{color: '#3ba55d', fontSize: 13, marginBottom: '0.5rem'}}>
-                    ✓ Bot is online in Discord. It stays online as long as this app is running — even if you close this tab.
-                </p>
-            )}
-
-            <BotChannelSelector
-                guilds={botGuilds}
-                channels={botChannels}
-                selectedGuildId={botSelectedGuild}
-                channelId={channelId}
-                chLoading={chLoading}
-                onGuildChange={selectGuild}
-                onChannelChange={id => {
-                    setChannelId(id);
-                    localStorage.setItem('discord.builders__channelId', id);
-                }}
-            />
-
-            {gatewayStatus === 'connected' && channelId && (
-                <div style={{marginTop: '1rem'}}>
-                    <button
-                        className={Styles.button}
-                        onClick={sendViaBot}
-                        style={{width: '100%'}}
-                    >
-                        Send Message
-                    </button>
-                </div>
-            )}
-
-            <p style={{marginTop: '0.5rem', marginBottom: '2rem', color: 'grey', fontSize: 13}}>
+            <p style={{marginTop: '0.4rem', marginBottom: '0.5rem', color: 'grey', fontSize: 13}}>
                 Token is stored locally and never sent anywhere except Discord's API.
             </p>
 
+            {gatewayStatus === 'connected' && (
+                <BotCard
+                    botUser={botUser}
+                    guilds={botGuilds}
+                    channels={botChannels}
+                    selectedGuildId={botSelectedGuild}
+                    channelId={channelId}
+                    chLoading={chLoading}
+                    onGuildChange={selectGuild}
+                    onChannelChange={id => {
+                        setChannelId(id);
+                        localStorage.setItem('discord.builders__channelId', id);
+                    }}
+                    onSend={sendViaBot}
+                    sending={isSending}
+                />
+            )}
+
             {!!botResponse && <div className={Styles.data}
-                                   style={{marginBottom: '2rem', color: (botResponse as any)?.status ? '#98dd98' : '#dd9898'}}>
+                                   style={{marginTop: '1rem', marginBottom: '2rem', color: (botResponse as any)?.status ? '#98dd98' : '#dd9898'}}>
                 {JSON.stringify(botResponse, undefined, 4)}
             </div>}
 
