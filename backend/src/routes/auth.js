@@ -42,7 +42,9 @@ router.post('/login', async (req, res) => {
         return res.status(503).json({ error: 'Login is not configured on this server.' });
 
     const emailMatch    = email.trim().toLowerCase() === adminEmail;
-    const passwordMatch = await bcrypt.compare(password, adminPasswordHash);
+    const passwordMatch = await bcrypt.compare(password.trim(), adminPasswordHash);
+
+    console.log(`[Auth] Login attempt — email match: ${emailMatch}, password match: ${passwordMatch}`);
 
     if (!emailMatch || !passwordMatch) {
         await bcrypt.compare('dummy', '$2a$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
