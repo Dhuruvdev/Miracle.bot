@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "installCommand": "node .yarn/releases/yarn.cjs install",
+  "installCommand": "corepack enable && yarn install",
   "buildCommand": "bash scripts/build-vercel.sh",
   "outputDirectory": "frontend/dist",
   "rewrites": [
