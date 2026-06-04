@@ -2,12 +2,7 @@
  * backend/src/lib/email.js
  *
  * Email sending via Gmail SMTP (Nodemailer).
- * Free, no third-party API needed — just a Gmail account with an App Password.
- *
- * Setup:
- *   1. Enable 2-Step Verification on your Google account.
- *   2. Go to myaccount.google.com → Security → App passwords → create one.
- *   3. Set GMAIL_USER and GMAIL_APP_PASSWORD in Replit Secrets.
+ * Sends both HTML and plain-text parts to avoid spam filters.
  */
 const nodemailer = require('nodemailer');
 
@@ -34,22 +29,47 @@ function getTransporter() {
 }
 
 /**
- * Send an email. Returns true on success, false on failure.
- * @param {{ to: string, subject: string, html: string }} opts
+ * Send an email with both HTML and plain-text parts.
+ * @param {{ to: string, subject: string, html: string, text: string }} opts
  */
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({ to, subject, html, text }) {
     const transporter = getTransporter();
     if (!transporter) return false;
 
     try {
-        const from = `"OpenEmbedded" <${process.env.GMAIL_USER}>`;
-        await transporter.sendMail({ from, to, subject, html });
+        const gmailUser = process.env.GMAIL_USER;
+        await transporter.sendMail({
+            from:     `"OpenEmbedded" <${gmailUser}>`,
+            replyTo:  gmailUser,
+            to,
+            subject,
+            text:     text || stripHtml(html),
+            html,
+            headers: {
+                'X-Entity-Ref-ID': `openembedded-${Date.now()}`,
+                'List-Unsubscribe': `<mailto:${gmailUser}?subject=unsubscribe>`,
+            },
+        });
         console.log(`[Email] Sent "${subject}" → ${to}`);
         return true;
     } catch (err) {
         console.error('[Email] Failed to send:', err.message);
         return false;
     }
+}
+
+/** Rough HTML → plain text strip for fallback. */
+function stripHtml(html) {
+    return (html || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/?(p|div|tr|td|table|h\d)[^>]*>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 }
 
 module.exports = { sendEmail };

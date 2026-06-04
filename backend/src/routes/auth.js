@@ -39,10 +39,23 @@ router.post('/login', async (req, res) => {
     const verifyUrl = `${appUrl}/verify?token=${token}`;
 
     const html = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES, appUrl });
+    const text = [
+        'Verify your OpenEmbedded login',
+        '',
+        'Click the link below to sign in to your account:',
+        verifyUrl,
+        '',
+        `This link expires in ${EXPIRES_MINUTES} minutes and can only be used once.`,
+        '',
+        "If you didn't request this, you can safely ignore this email.",
+        '',
+        '© OpenEmbedded',
+    ].join('\n');
     const sent = await sendEmail({
         to:      email.trim(),
         subject: 'Verify your OpenEmbedded login',
         html,
+        text,
     });
 
     if (!sent) {
@@ -233,6 +246,18 @@ function buildRedirectUri(req) {
 function buildAppUrl(req) {
     const host  = req.headers['x-forwarded-host'] || req.headers.host;
     const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+
+    // When the request comes directly to the backend (e.g. localhost:3001),
+    // fall back to the configured public domain so the verify link works.
+    const isLocal = !host || host.startsWith('localhost') || host.startsWith('127.0.0.1');
+    if (isLocal) {
+        const domain = process.env.APP_URL || process.env.REPLIT_DEV_DOMAIN;
+        if (domain) {
+            // REPLIT_DEV_DOMAIN has no protocol prefix
+            return domain.startsWith('http') ? domain : `https://${domain}`;
+        }
+    }
+
     return `${proto}://${host}`;
 }
 
