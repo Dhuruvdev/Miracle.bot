@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Vercel build script — always uses the committed Yarn 4 binary so the
-# correct version is guaranteed regardless of what Vercel has installed globally.
+# Vercel build script — downloads Yarn 4 on-the-fly so no committed binary is needed.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-YARN="node ${REPO_ROOT}/.yarn/releases/yarn.cjs"
+YARN4="/tmp/yarn4.js"
+YARN4_URL="https://repo.yarnpkg.com/4.10.3/packages/yarnpkg-cli/bin/yarn.js"
+
+if [ ! -f "$YARN4" ]; then
+  echo "▶ Downloading Yarn 4..."
+  curl -fsSL "$YARN4_URL" -o "$YARN4"
+fi
+
+YARN="node ${YARN4}"
 
 echo "▶ Yarn version: $(${YARN} --version)"
 echo "▶ Building components-sdk..."
