@@ -126,7 +126,7 @@ router.get('/discord', (req, res) => {
         client_id:     clientId,
         redirect_uri:  redirectUri,
         response_type: 'code',
-        scope:         'identify email activities.write',
+        scope:         'identify email',
         state,
         prompt:        'none',
     });
@@ -138,14 +138,16 @@ router.get('/discord', (req, res) => {
 router.get('/discord/callback', async (req, res) => {
     const { code, state, error } = req.query;
 
+    const appUrl = buildAppUrl(req);
+
     if (error) {
         console.warn('[Auth/Discord] User denied authorization:', error);
-        return res.redirect('/?error=discord_denied');
+        return res.redirect(`${appUrl}?error=discord_denied`);
     }
 
     if (!state || state !== req.session.oauthState) {
         console.warn('[Auth/Discord] State mismatch — possible CSRF attempt');
-        return res.redirect('/?error=state_mismatch');
+        return res.redirect(`${appUrl}?error=state_mismatch`);
     }
     req.session.oauthState = null;
 
@@ -170,7 +172,7 @@ router.get('/discord/callback', async (req, res) => {
         if (!tokenRes.ok) {
             const body = await tokenRes.text();
             console.error('[Auth/Discord] Token exchange failed:', body);
-            return res.redirect('/?error=discord_token');
+            return res.redirect(`${appUrl}?error=discord_token`);
         }
 
         const tokenData = await tokenRes.json();
@@ -182,7 +184,7 @@ router.get('/discord/callback', async (req, res) => {
 
         if (!userRes.ok) {
             console.error('[Auth/Discord] User fetch failed:', userRes.status);
-            return res.redirect('/?error=discord_user');
+            return res.redirect(`${appUrl}?error=discord_user`);
         }
 
         const discordUser = await userRes.json();
@@ -200,10 +202,10 @@ router.get('/discord/callback', async (req, res) => {
         createPresence(discordUser.id, access_token).catch(() => {});
 
         console.log(`[Auth/Discord] Logged in: ${discordUser.username} (${discordUser.id})`);
-        res.redirect('/');
+        res.redirect(appUrl);
     } catch (err) {
         console.error('[Auth/Discord] Unexpected error:', err.message);
-        res.redirect('/?error=discord_error');
+        res.redirect(`${appUrl}?error=discord_error`);
     }
 });
 
@@ -251,6 +253,14 @@ function buildAppUrl(req) {
     // 2. Derive from reverse-proxy headers (works through Vite dev proxy).
     const host  = req.headers['x-forwarded-host'] || req.headers.host;
     const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+
+    // 3. Fall back to REPLIT_DEV_DOMAIN so callbacks hitting the backend
+    //    directly (external port 80 → port 3001) still redirect to the frontend.
+    if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
+        if (process.env.REPLIT_DEV_DOMAIN)
+            return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+    }
+
     return `${proto}://${host}`;
 }
 
