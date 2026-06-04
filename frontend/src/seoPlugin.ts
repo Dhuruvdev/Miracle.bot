@@ -10,30 +10,31 @@ export default function seoPlugin(): PluginOption {
         apply: 'build',
         enforce: 'post',
         generateBundle(_, bundle) {
+            const siteUrl = (process.env.VITE_SITE_URL || 'https://discord.builders').replace(/\/$/, '');
             const nginxConf: string[] = [];
             const headers: string[] = [];
             const redirects: string[] = [];
             const urlset: string[] = [];
             for (const page of pages) {
-                headers.push(`${page}\n  Link: <https://discord.builders${page}>; rel="canonical"\n`);
-                nginxConf.push(`location = ${page} { try_files /index.html =404; add_header Link "<https://discord.builders${page}>; rel=\\"canonical\\""; }`);
+                headers.push(`${page}\n  Link: <${siteUrl}${page}>; rel="canonical"\n`);
+                nginxConf.push(`location = ${page} { try_files /index.html =404; add_header Link "<${siteUrl}${page}>; rel=\\"canonical\\""; }`);
                 if (page !== '/') redirects.push(`${page} / 200`);
 
                 const altKeys = supportedLngs.map((lang) => {
-                    return `<xhtml:link rel="alternate" hreflang="${lang}" href="https://discord.builders${translatePath(lang, page)}" />`;
-                }).join('') + `<xhtml:link rel="alternate" hreflang="x-default" href="https://discord.builders${page}" />`;
+                    return `<xhtml:link rel="alternate" hreflang="${lang}" href="${siteUrl}${translatePath(lang, page)}" />`;
+                }).join('') + `<xhtml:link rel="alternate" hreflang="x-default" href="${siteUrl}${page}" />`;
 
                 urlset.push(
-                    `<url><loc>https://discord.builders${page}</loc><changefreq>monthly</changefreq>${altKeys}</url>`
+                    `<url><loc>${siteUrl}${page}</loc><changefreq>monthly</changefreq>${altKeys}</url>`
                 );
 
                 for (const lang of supportedLngs) {
-                    headers.push(`${translatePath(lang, page)}\n  Link: <https://discord.builders${translatePath(lang, page)}>; rel="canonical"\n`);
-                    nginxConf.push(`location = ${translatePath(lang, page)} { try_files /index.html =404; add_header Link "<https://discord.builders${translatePath(lang, page)}>; rel=\\"canonical\\""; }`);
+                    headers.push(`${translatePath(lang, page)}\n  Link: <${siteUrl}${translatePath(lang, page)}>; rel="canonical"\n`);
+                    nginxConf.push(`location = ${translatePath(lang, page)} { try_files /index.html =404; add_header Link "<${siteUrl}${translatePath(lang, page)}>; rel=\\"canonical\\""; }`);
                     redirects.push(`${translatePath(lang, page)} / 200`);
                     const priority = (page === '/') ? '<priority>1.0</priority>' : '';
                     urlset.push(
-                        `<url><loc>https://discord.builders${translatePath(lang, page)}</loc>${priority}<changefreq>monthly</changefreq>${altKeys}</url>`
+                        `<url><loc>${siteUrl}${translatePath(lang, page)}</loc>${priority}<changefreq>monthly</changefreq>${altKeys}</url>`
                     );
                 }
             }

@@ -1,0 +1,23 @@
+{
+  "name": "OpenEmbedded — Discord Component Builder",
+  "short_name": "OpenEmbedded",
+  "description": "Build and send Discord UI components with a visual builder. Generate code for discord.js, discord.py, JDA, DPP, and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07080e",
+  "theme_color": "#5865F2",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["developer", "utilities"],
+  "lang": "en"
+}

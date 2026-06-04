@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html translate='no' class='notranslate'>
+<html translate='no' class='notranslate' lang='en'>
   <head>
         <meta charset='UTF-8'>
         <meta name='viewport' content='width=device-width,initial-scale=1'>
@@ -8,20 +8,75 @@
         <meta name='google' content='notranslate'>
         <meta name="color-scheme" content="light dark">
         <meta name="darkreader-lock">
-        <meta name='description' content='Build and send Discord UI components like buttons, dropdowns and containers with drag and drop support.'>
-        <meta property='og:description' content='Build and send Discord UI components like buttons, dropdowns and containers with drag and drop support.'>
-        <meta property='twitter:description' content='Build and send Discord UI components like buttons, dropdowns and containers with drag and drop support.'>
-        <meta property='og:title' content='OpenEmbedded · Discord Component Builder'>
-        <meta property='twitter:title' content='OpenEmbedded · Discord Component Builder'>
+
+        <!-- Primary SEO -->
+        <meta name='description' content='Build and send Discord UI components like buttons, dropdowns and containers with a visual drag-and-drop builder. Generate ready-to-use code for discord.js, discord.py, JDA, DPP, and more.'>
+        <meta name='keywords' content='Discord component builder, Discord button builder, Discord embed builder, discord.js components, discord.py components, Discord UI builder, Discord message builder, Discord webhook, Discord code generator'>
+        <meta name='robots' content='index, follow'>
+        <meta name='author' content='OpenEmbedded'>
+        <link rel='canonical' href='https://discord.builders/'>
+
+        <!-- Open Graph -->
         <meta property='og:type' content='website'>
         <meta property='og:site_name' content='OpenEmbedded'>
+        <meta property='og:title' content='OpenEmbedded · Discord Component Builder'>
+        <meta property='og:description' content='Build and send Discord UI components like buttons, dropdowns and containers with a visual drag-and-drop builder. Generate ready-to-use code for discord.js, discord.py, JDA, DPP, and more.'>
+        <meta property='og:url' content='https://discord.builders/'>
+        <meta property='og:image' content='https://discord.builders/og-image.png'>
+        <meta property='og:image:width' content='1200'>
+        <meta property='og:image:height' content='630'>
+        <meta property='og:image:alt' content='OpenEmbedded — Discord Component Builder'>
+        <meta property='og:locale' content='en_US'>
+
+        <!-- Twitter Card -->
+        <meta name='twitter:card' content='summary_large_image'>
+        <meta name='twitter:title' content='OpenEmbedded · Discord Component Builder'>
+        <meta name='twitter:description' content='Build and send Discord UI components like buttons, dropdowns and containers with a visual drag-and-drop builder.'>
+        <meta name='twitter:image' content='https://discord.builders/og-image.png'>
+        <meta name='twitter:image:alt' content='OpenEmbedded — Discord Component Builder'>
+
+        <!-- PWA / Mobile -->
         <meta name="apple-mobile-web-app-title" content="OpenEmbedded" />
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <link rel='manifest' href='/manifest.json'>
+
+        <!-- Fonts -->
         <link rel='preconnect' href='https://fonts.googleapis.com'>
         <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wdth,wght@0,62.5..100,100..900;1,62.5..100,100..900&display=swap" rel="stylesheet">
+
+        <!-- Favicons -->
         <link rel="icon" type="image/png" href="/favicon.png" sizes="96x96" />
         <link rel="shortcut icon" href="/favicon.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/favicon.png" />
+
+        <!-- Structured Data -->
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "OpenEmbedded",
+          "description": "Build and send Discord UI components like buttons, dropdowns and containers with a visual drag-and-drop builder. Generate ready-to-use code for discord.js, discord.py, JDA, DPP, and more.",
+          "url": "https://discord.builders/",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "Web",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "featureList": [
+            "Visual Discord component builder",
+            "Code generation for discord.js, discord.py, JDA, DPP, hikari, pycord, DisCatSharp, Discord.Net",
+            "Webhook message sending",
+            "Button and select menu builder",
+            "Multi-language support (7 languages)"
+          ],
+          "screenshot": "https://discord.builders/og-image.png",
+          "inLanguage": ["en", "de", "fr", "es", "pt", "pl", "ca"]
+        }
+        </script>
   </head>
   <body>
     <div id="root"></div>

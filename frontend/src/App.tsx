@@ -20,6 +20,7 @@ import { UserProfile } from './UserProfile';
 import { ApiResponseCard } from './ApiResponseCard';
 import { ErrorFallback } from './ErrorFallback';
 import { useToast } from './Toast';
+import { useSeoMeta } from './useSeoMeta';
 
 webhookImplementation.init();
 
@@ -47,6 +48,7 @@ function App() {
     const [page, setPage] = useRouter();
     const [postTitle, setPostTitle] = useState<string>("");
     useHashRouter();
+    useSeoMeta(page);
 
     const setFile = useCallback(webhookImplementation.setFile, []);
     const getFile = useCallback(webhookImplementation.getFile, [])
