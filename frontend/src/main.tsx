@@ -11,11 +11,13 @@ import {Provider} from 'react-redux'
 import { ButtonActionsProvider } from './ButtonActionsContext';
 import { ResponseBuilderProvider } from './ResponseBuilderContext';
 import { useAuth } from './hooks/useAuth';
+import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { SignIn } from './SignIn';
 import { ToastProvider } from './Toast';
 
 function AuthGate() {
-    const { isAuthenticated, isLoading } = useAuth();
+    const { user, isAuthenticated, isLoading } = useAuth();
+    useDiscordPresence(user);
 
     if (isLoading) {
         return (

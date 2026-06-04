@@ -5,6 +5,7 @@ const crypto   = require('crypto');
 const { createToken, consumeToken, pruneExpiredTokens, EXPIRES_MINUTES } = require('../lib/tokens');
 const { sendEmail }              = require('../lib/email');
 const { verificationEmailHtml }  = require('../lib/emailTemplate');
+const { createPresence, refreshPresence, clearPresence } = require('../lib/presence');
 
 const router = express.Router();
 
@@ -112,7 +113,7 @@ router.get('/discord', (req, res) => {
         client_id:     clientId,
         redirect_uri:  redirectUri,
         response_type: 'code',
-        scope:         'identify email',
+        scope:         'identify email activities.write',
         state,
         prompt:        'none',
     });
@@ -159,7 +160,8 @@ router.get('/discord/callback', async (req, res) => {
             return res.redirect('/?error=discord_token');
         }
 
-        const { access_token, token_type } = await tokenRes.json();
+        const tokenData = await tokenRes.json();
+        const { access_token, token_type } = tokenData;
 
         const userRes = await fetch('https://discord.com/api/users/@me', {
             headers: { Authorization: `${token_type} ${access_token}` },
@@ -181,6 +183,9 @@ router.get('/discord/callback', async (req, res) => {
             provider:      'discord',
         };
 
+        // Set Discord Rich Presence so the activity shows on their profile
+        createPresence(discordUser.id, access_token).catch(() => {});
+
         console.log(`[Auth/Discord] Logged in: ${discordUser.username} (${discordUser.id})`);
         res.redirect('/');
     } catch (err) {
@@ -197,8 +202,24 @@ router.get('/user', (req, res) => {
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
+    if (req.session?.user?.provider === 'discord' && req.session.user.id) {
+        clearPresence(req.session.user.id);
+    }
     req.session = null;
     res.json({ ok: true });
+});
+
+// ── POST /api/auth/presence/refresh ──────────────────────────────────────────
+// Called every 15 min by the frontend to keep the Discord activity alive.
+// Only works for Discord-authenticated users; silently ignored otherwise.
+router.post('/presence/refresh', (req, res) => {
+    const user = req.session?.user;
+    if (!user || user.provider !== 'discord') {
+        return res.json({ ok: false, reason: 'not_discord' });
+    }
+    refreshPresence(user.id)
+        .then(ok => res.json({ ok }))
+        .catch(() => res.json({ ok: false }));
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
