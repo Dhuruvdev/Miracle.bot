@@ -1,7 +1,7 @@
 {
     "name": "openembedded-desktop",
     "version": "1.0.0",
-    "description": "OpenEmbedded — Discord UI Component Builder (Desktop)",
+    "description": "OpenEmbedded — Discord UI Component Builder (Desktop Web Wrapper)",
     "main": "main.js",
     "scripts": {
         "start": "electron .",
@@ -28,26 +28,14 @@
             "main.js",
             "preload.js",
             "rpc.js",
-            "dist/**/*",
             "node_modules/**/*",
             "!node_modules/electron-builder/**/*"
-        ],
-        "extraResources": [
-            {
-                "from": "../frontend/dist",
-                "to": "app",
-                "filter": [
-                    "**/*"
-                ]
-            }
         ],
         "win": {
             "target": [
                 {
                     "target": "nsis",
-                    "arch": [
-                        "x64"
-                    ]
+                    "arch": ["x64"]
                 }
             ],
             "icon": "assets/icon.ico"
@@ -56,10 +44,7 @@
             "target": [
                 {
                     "target": "dmg",
-                    "arch": [
-                        "x64",
-                        "arm64"
-                    ]
+                    "arch": ["x64", "arm64"]
                 }
             ],
             "icon": "assets/icon.icns",
@@ -69,9 +54,7 @@
             "target": [
                 {
                     "target": "AppImage",
-                    "arch": [
-                        "x64"
-                    ]
+                    "arch": ["x64"]
                 }
             ],
             "icon": "assets/icon.png",
@@ -82,6 +65,9 @@
             "allowToChangeInstallationDirectory": true,
             "createDesktopShortcut": true,
             "createStartMenuShortcut": true
+        },
+        "extraMetadata": {
+            "main": "main.js"
         }
     }
 }
