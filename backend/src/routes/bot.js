@@ -1,5 +1,5 @@
 const express = require('express');
-const { botState, gwConnect, gwDisconnect, gwUpdatePresence, setButtonActions } = require('../lib/gateway');
+const { bot, handler } = require('../lib/botInstance');
 const { discordFetch } = require('../lib/discordFetch');
 const { saveActionsToDb } = require('../lib/db');
 
@@ -8,11 +8,10 @@ const router = express.Router();
 // ── POST /api/bot/presence ────────────────────────────────────────────────────
 // Update the bot's own Gateway presence (what servers see on the bot's profile).
 // Body: { activity: { type, name, url? } | null }
-// Pass activity: null to clear the activity (bot shows as online with no status).
 router.post('/presence', (req, res) => {
-    if (!botState.token) return res.status(400).json({ error: 'Bot not connected.' });
+    if (!bot._token) return res.status(400).json({ error: 'Bot not connected.' });
     const { activity } = req.body || {};
-    gwUpdatePresence(activity ?? null);
+    bot.updatePresence(activity ?? null);
     res.json({ ok: true });
 });
 
@@ -20,10 +19,9 @@ router.post('/presence', (req, res) => {
 router.post('/actions', async (req, res) => {
     const { actions } = req.body || {};
     if (actions && typeof actions === 'object') {
-        setButtonActions(actions);
+        bot.setButtonActions(actions);
+        handler.setActions(actions);
         console.log(`[Actions] Registered ${Object.keys(actions).length} button action(s): ${Object.keys(actions).join(', ') || '(none)'}`);
-
-        // Persist to DB (no-op if DATABASE_URL not configured)
         await saveActionsToDb(actions);
     }
     res.json({ ok: true });
@@ -43,36 +41,35 @@ router.post('/start', async (req, res) => {
         return res.status(401).json({ error: e.message || 'Invalid bot token.' });
     }
 
-    gwDisconnect();
-    botState.token  = trimmed;
-    botState.guilds = guilds.sort((a, b) => a.name.localeCompare(b.name));
-    gwConnect(trimmed);
+    bot.disconnect();
+    bot.guilds = guilds.sort((a, b) => a.name.localeCompare(b.name));
+    bot.connect(trimmed);
 
-    res.json({ ok: true, guilds: botState.guilds });
+    res.json({ ok: true, guilds: bot.guilds });
 });
 
 // ── POST /api/bot/stop ────────────────────────────────────────────────────────
 router.post('/stop', (req, res) => {
-    gwDisconnect();
+    bot.disconnect();
     res.json({ ok: true });
 });
 
 // ── GET /api/bot/status ───────────────────────────────────────────────────────
 router.get('/status', (req, res) => {
     res.json({
-        status:   botState.status,
-        error:    botState.error,
-        guilds:   botState.guilds,
-        hasToken: !!botState.token,
-        botUser:  botState.botUser,
+        status:   bot.status,
+        error:    bot.error,
+        guilds:   bot.guilds,
+        hasToken: !!bot._token,
+        botUser:  bot.botUser,
     });
 });
 
 // ── GET /api/bot/guilds/:guildId/channels ─────────────────────────────────────
 router.get('/guilds/:guildId/channels', async (req, res) => {
-    if (!botState.token) return res.status(401).json({ error: 'Bot not connected.' });
+    if (!bot._token) return res.status(401).json({ error: 'Bot not connected.' });
     try {
-        const channels = await discordFetch(`/guilds/${req.params.guildId}/channels`, botState.token);
+        const channels = await discordFetch(`/guilds/${req.params.guildId}/channels`, bot._token);
         if (!Array.isArray(channels)) {
             console.error('[Channels] Unexpected response:', channels);
             return res.status(500).json({ error: 'Unexpected response from Discord.' });
@@ -88,7 +85,7 @@ router.get('/guilds/:guildId/channels', async (req, res) => {
 
 // ── POST /api/bot/channels/:channelId/messages ────────────────────────────────
 router.post('/channels/:channelId/messages', async (req, res) => {
-    if (!botState.token) return res.status(401).json({ error: 'Bot not connected.' });
+    if (!bot._token) return res.status(401).json({ error: 'Bot not connected.' });
 
     const channelId = req.params.channelId;
     const { attachments, ...discordPayload } = req.body;
@@ -113,7 +110,7 @@ router.post('/channels/:channelId/messages', async (req, res) => {
 
         const result = await discordFetch(
             `/channels/${channelId}/messages`,
-            botState.token,
+            bot._token,
             fetchOptions
         );
         console.log(`[Send] ✓ Success`);

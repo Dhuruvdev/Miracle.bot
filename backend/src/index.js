@@ -12,8 +12,8 @@ const sessionMiddleware = require('./middleware/session');
 const { router: authRouter, initAuth } = require('./routes/auth');
 const botRouter         = require('./routes/bot');
 const { loadActionsFromDb } = require('./lib/db');
-const { setButtonActions, gwConnect } = require('./lib/gateway');
-const { discordFetch } = require('./lib/discordFetch');
+const { bot, handler }  = require('./lib/botInstance');
+const { discordFetch }  = require('./lib/discordFetch');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -44,7 +44,6 @@ const frontendDist = path.resolve(__dirname, '../../frontend/dist');
 
 if (isProd && fs.existsSync(frontendDist)) {
     app.use(express.static(frontendDist));
-    // SPA fallback — all non-API routes serve index.html
     app.get('*', (req, res) => {
         res.sendFile(path.join(frontendDist, 'index.html'));
     });
@@ -54,26 +53,27 @@ if (isProd && fs.existsSync(frontendDist)) {
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (require.main === module) {
     initAuth().then(async () => {
+        // Load persisted button actions and pass them to the bot
         const savedActions = await loadActionsFromDb();
         if (Object.keys(savedActions).length > 0) {
-            setButtonActions(savedActions);
+            bot.setButtonActions(savedActions);
+            handler.setActions(savedActions);
         }
 
         // ── Auto-connect official bot from env ────────────────────────────────
         const envToken = process.env.DISCORD_BOT_TOKEN;
         if (envToken) {
             console.log('[Server] DISCORD_BOT_TOKEN found — auto-connecting bot...');
-            try {
-                const guilds = await discordFetch('/users/@me/guilds', envToken);
-                const { botState } = require('./lib/gateway');
-                botState.token  = envToken;
-                botState.guilds = Array.isArray(guilds)
-                    ? guilds.sort((a, b) => a.name.localeCompare(b.name))
-                    : [];
-                gwConnect(envToken);
-            } catch (err) {
-                console.error('[Server] Auto-connect failed:', err.message);
-            }
+            // Prefetch guild list (nice-to-have) — connect regardless of outcome
+            discordFetch('/users/@me/guilds', envToken)
+                .then(guilds => {
+                    bot.guilds = Array.isArray(guilds)
+                        ? guilds.sort((a, b) => a.name.localeCompare(b.name))
+                        : [];
+                })
+                .catch(err => console.warn('[Server] Guild prefetch failed (non-fatal):', err.message));
+            // Always attempt Gateway connection
+            bot.connect(envToken);
         }
 
         const PORT = process.env.PORT || process.env.BOT_SERVER_PORT || (isProd ? 8080 : 3001);

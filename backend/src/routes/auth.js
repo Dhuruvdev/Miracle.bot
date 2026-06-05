@@ -5,7 +5,8 @@ const crypto   = require('crypto');
 const { createToken, consumeToken, pruneExpiredTokens, EXPIRES_MINUTES } = require('../lib/tokens');
 const { sendEmail }              = require('../lib/email');
 const { verificationEmailHtml }  = require('../lib/emailTemplate');
-const { createPresence, refreshPresence, clearPresence } = require('../lib/presence');
+const { userPresence } = require('discord-bot');
+const applicationId = process.env.DISCORD_CLIENT_ID;
 
 const router = express.Router();
 
@@ -126,7 +127,7 @@ router.get('/discord', (req, res) => {
         client_id:     clientId,
         redirect_uri:  redirectUri,
         response_type: 'code',
-        scope:         'identify email guilds',
+        scope:         'identify email guilds activities.write',
         state,
         prompt:        'consent',
     });
@@ -199,8 +200,8 @@ router.get('/discord/callback', async (req, res) => {
             discordAccessToken: access_token,
         };
 
-        // Set Discord Rich Presence so the activity shows on their profile
-        createPresence(discordUser.id, access_token).catch(() => {});
+        // Set Discord Rich Presence — shows "Playing OpenEmbedded" on their profile
+        userPresence.set(discordUser.id, access_token, applicationId).catch(() => {});
 
         console.log(`[Auth/Discord] Logged in: ${discordUser.username} (${discordUser.id})`);
         res.redirect(appUrl);
@@ -257,7 +258,7 @@ router.get('/guilds', async (req, res) => {
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
     if (req.session?.user?.provider === 'discord' && req.session.user.id) {
-        clearPresence(req.session.user.id);
+        userPresence.clear(req.session.user.id);
     }
     req.session = null;
     res.json({ ok: true });
@@ -271,7 +272,7 @@ router.post('/presence/refresh', (req, res) => {
     if (!user || user.provider !== 'discord') {
         return res.json({ ok: false, reason: 'not_discord' });
     }
-    refreshPresence(user.id)
+    userPresence.refresh(user.id, applicationId)
         .then(ok => res.json({ ok }))
         .catch(() => res.json({ ok: false }));
 });

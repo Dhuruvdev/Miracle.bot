@@ -10,7 +10,8 @@
             "frontend",
             "frontend/packages/components-sdk",
             "backend",
-            "database"
+            "database",
+            "discord-bot"
         ]
     },
     "resolutions": {
