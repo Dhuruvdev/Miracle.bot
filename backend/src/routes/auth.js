@@ -204,7 +204,7 @@ router.get('/discord/callback', async (req, res) => {
         userPresence.set(discordUser.id, access_token, applicationId).catch(() => {});
 
         console.log(`[Auth/Discord] Logged in: ${discordUser.username} (${discordUser.id})`);
-        res.redirect(appUrl);
+        res.redirect(`${appUrl}?discord_connected=1`);
     } catch (err) {
         console.error('[Auth/Discord] Unexpected error:', err.message);
         res.redirect(`${appUrl}?error=discord_error`);
