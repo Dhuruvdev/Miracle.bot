@@ -14,6 +14,7 @@ const botRouter         = require('./routes/bot');
 const { loadActionsFromDb } = require('./lib/db');
 const { bot, handler }  = require('./lib/botInstance');
 const { discordFetch }  = require('./lib/discordFetch');
+const { initDb }        = require('./lib/initDb');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -86,7 +87,8 @@ if (isProd && fs.existsSync(frontendDist)) {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (require.main === module) {
-    initAuth().then(async () => {
+    // Ensure all DB tables exist before anything else runs
+    initDb().then(() => initAuth()).then(async () => {
         // Load persisted button actions and pass them to the bot
         const savedActions = await loadActionsFromDb();
         if (Object.keys(savedActions).length > 0) {

@@ -1,2 +1,4 @@
 - [OpenEmbedded auth architecture](openembedded-auth.md) — custom OIDC via native Node.js in plain-JS Express server; no passport/openid-client needed.
 - [Clear-everything Redux bug](clear-everything-bug.md) — shadowed `actions` import was the root cause; fixed by removing duplicate destructuring.
+- [OpenEmbedded DB setup](openembedded-db.md) — backend uses NEON_DATABASE_URL (not DATABASE_URL); initDb.js runs CREATE TABLE IF NOT EXISTS on startup to keep NEON schema in sync.
+- [Discord OAuth redirect_uri fix](discord-oauth-redirect.md) — buildRedirectUri must use REPLIT_DEV_DOMAIN for consistency across proxy paths; mismatched URIs cause discord_token error.

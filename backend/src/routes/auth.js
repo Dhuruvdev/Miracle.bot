@@ -1,22 +1,22 @@
 const express = require('express');
-const bcrypt   = require('bcryptjs');
 const crypto   = require('crypto');
 
 const { createToken, consumeToken, pruneExpiredTokens, EXPIRES_MINUTES } = require('../lib/tokens');
 const { sendEmail }              = require('../lib/email');
 const { verificationEmailHtml }  = require('../lib/emailTemplate');
+const { sendWelcomeDm }          = require('../lib/discordDm');
 const { userPresence } = require('discord-bot');
 const applicationId = process.env.DISCORD_CLIENT_ID;
 
 const router = express.Router();
 
 async function initAuth() {
-    // Clean up leftover tokens on startup
     pruneExpiredTokens().catch(() => {});
 }
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
-// Sends a verification email to any valid email address.
+// Sends a magic-link verification email. Password field is accepted but ignored
+// (the system is passwordless — email-verification only).
 router.post('/login', async (req, res) => {
     const { email } = req.body || {};
 
@@ -27,16 +27,16 @@ router.post('/login', async (req, res) => {
 
     console.log(`[Auth] Login attempt for "${inputEmail}"`);
 
-    // Generate email verification token
     const token = await createToken(inputEmail);
     if (!token) {
-        // DB unavailable — fall back to direct session login
+        // DB unavailable — fall back to instant session login
         console.warn('[Auth] DB unavailable, falling back to direct login');
         req.session.user = { id: inputEmail, email: email.trim(), provider: 'password' };
         return res.json({ ok: true, direct: true });
     }
 
     const appUrl    = buildAppUrl(req);
+    // Link goes to the FRONTEND /verify route, which calls /api/auth/verify via fetch
     const verifyUrl = `${appUrl}/verify?token=${token}`;
 
     const html = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES });
@@ -52,6 +52,7 @@ router.post('/login', async (req, res) => {
         '',
         '© OpenEmbedded',
     ].join('\n');
+
     const sent = await sendEmail({
         to:      email.trim(),
         subject: 'Verify your OpenEmbedded login',
@@ -60,7 +61,6 @@ router.post('/login', async (req, res) => {
     });
 
     if (!sent) {
-        // Email failed — still allow direct login so the app isn't locked out
         console.warn('[Auth] Email send failed, falling back to direct login');
         req.session.user = { id: inputEmail, email: email.trim(), provider: 'password' };
         return res.json({ ok: true, direct: true });
@@ -70,7 +70,9 @@ router.post('/login', async (req, res) => {
 });
 
 // ── GET /api/auth/verify ──────────────────────────────────────────────────────
-// Consumes a verification token and creates a session.
+// Called via fetch by the frontend (SignIn.tsx) when the user lands on
+// /?token=... after clicking the magic-link email. Returns JSON so the
+// frontend can show an animated confirmation before navigating.
 router.get('/verify', async (req, res) => {
     const { token } = req.query;
 
@@ -94,7 +96,6 @@ router.get('/verify', async (req, res) => {
 });
 
 // ── POST /api/auth/resend ─────────────────────────────────────────────────────
-// Re-sends the verification email (rate-limited to verified credentials only).
 router.post('/resend', async (req, res) => {
     const { email } = req.body || {};
     if (!email || typeof email !== 'string')
@@ -104,7 +105,7 @@ router.post('/resend', async (req, res) => {
     if (!token) return res.status(503).json({ error: 'Service temporarily unavailable.' });
 
     const appUrl    = buildAppUrl(req);
-    const verifyUrl = `${appUrl}/verify?token=${token}`;
+    const verifyUrl = `${appUrl}/api/auth/verify?token=${token}`;
     const html      = verificationEmailHtml({ verifyUrl, expiresMinutes: EXPIRES_MINUTES, appUrl });
 
     const sent = await sendEmail({ to: email.trim(), subject: 'Verify your OpenEmbedded login', html });
@@ -123,6 +124,8 @@ router.get('/discord', (req, res) => {
     req.session.oauthState = state;
 
     const redirectUri = buildRedirectUri(req);
+    console.log(`[Auth/Discord] Starting OAuth — redirect_uri: ${redirectUri}`);
+
     const params = new URLSearchParams({
         client_id:     clientId,
         redirect_uri:  redirectUri,
@@ -143,12 +146,12 @@ router.get('/discord/callback', async (req, res) => {
 
     if (error) {
         console.warn('[Auth/Discord] User denied authorization:', error);
-        return res.redirect(`${appUrl}?error=discord_denied`);
+        return res.redirect(`${appUrl}/?error=discord_denied`);
     }
 
     if (!state || state !== req.session.oauthState) {
-        console.warn('[Auth/Discord] State mismatch — possible CSRF attempt');
-        return res.redirect(`${appUrl}?error=state_mismatch`);
+        console.warn('[Auth/Discord] State mismatch — possible CSRF or cookie issue');
+        return res.redirect(`${appUrl}/?error=state_mismatch`);
     }
     req.session.oauthState = null;
 
@@ -156,6 +159,12 @@ router.get('/discord/callback', async (req, res) => {
     const clientSecret = process.env.DISCORD_CLIENT_SECRET;
     if (!clientId || !clientSecret)
         return res.status(503).send('Discord login is not configured.');
+
+    // IMPORTANT: redirect_uri in the token exchange MUST exactly match what was
+    // used in the authorization URL. We use buildRedirectUri() both times so they
+    // are always identical, regardless of which proxy path the request arrived on.
+    const redirectUri = buildRedirectUri(req);
+    console.log(`[Auth/Discord] Callback — exchanging code, redirect_uri: ${redirectUri}`);
 
     try {
         const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
@@ -166,14 +175,14 @@ router.get('/discord/callback', async (req, res) => {
                 client_secret: clientSecret,
                 grant_type:    'authorization_code',
                 code,
-                redirect_uri:  buildRedirectUri(req),
+                redirect_uri:  redirectUri,
             }),
         });
 
         if (!tokenRes.ok) {
             const body = await tokenRes.text();
             console.error('[Auth/Discord] Token exchange failed:', body);
-            return res.redirect(`${appUrl}?error=discord_token`);
+            return res.redirect(`${appUrl}/?error=discord_token`);
         }
 
         const tokenData = await tokenRes.json();
@@ -185,7 +194,7 @@ router.get('/discord/callback', async (req, res) => {
 
         if (!userRes.ok) {
             console.error('[Auth/Discord] User fetch failed:', userRes.status);
-            return res.redirect(`${appUrl}?error=discord_user`);
+            return res.redirect(`${appUrl}/?error=discord_user`);
         }
 
         const discordUser = await userRes.json();
@@ -194,6 +203,7 @@ router.get('/discord/callback', async (req, res) => {
             id:                 discordUser.id,
             email:              discordUser.email || null,
             username:           discordUser.username,
+            globalName:         discordUser.global_name || discordUser.username,
             discriminator:      discordUser.discriminator,
             avatar:             discordUser.avatar,
             provider:           'discord',
@@ -204,11 +214,15 @@ router.get('/discord/callback', async (req, res) => {
         userPresence.set(discordUser.id, access_token, applicationId).catch(() => {});
 
         console.log(`[Auth/Discord] Logged in: ${discordUser.username} (${discordUser.id})`);
-        // Send user to the bot-invite step before loading the app
-        res.redirect(`${appUrl}?invite_bot=1`);
+
+        // ── Send professional welcome DM via the bot ──────────────────────────
+        sendWelcomeDm(discordUser.id, discordUser, req).catch(() => {});
+
+        // Send user to the bot-invite step
+        res.redirect(`${appUrl}/?invite_bot=1`);
     } catch (err) {
         console.error('[Auth/Discord] Unexpected error:', err.message);
-        res.redirect(`${appUrl}?error=discord_error`);
+        res.redirect(`${appUrl}/?error=discord_error`);
     }
 });
 
@@ -220,8 +234,6 @@ router.get('/user', (req, res) => {
 });
 
 // ── GET /api/auth/guilds ──────────────────────────────────────────────────────
-// Returns the guilds where the Discord-authenticated user is an admin or owner.
-// Requires the guilds OAuth2 scope (prompt: consent on login).
 router.get('/guilds', async (req, res) => {
     if (!req.session?.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -266,8 +278,6 @@ router.post('/logout', (req, res) => {
 });
 
 // ── POST /api/auth/presence/refresh ──────────────────────────────────────────
-// Called every 15 min by the frontend to keep the Discord activity alive.
-// Only works for Discord-authenticated users; silently ignored otherwise.
 router.post('/presence/refresh', (req, res) => {
     const user = req.session?.user;
     if (!user || user.provider !== 'discord') {
@@ -279,34 +289,29 @@ router.post('/presence/refresh', (req, res) => {
 });
 
 // ── GET /api/auth/discord/invite ──────────────────────────────────────────────
-// Redirects the (already-authenticated) user to Discord's bot-add OAuth page.
-// Requires the user to select a server — permissions=8 = Administrator.
 router.get('/discord/invite', (req, res) => {
     const clientId = process.env.DISCORD_CLIENT_ID;
     if (!clientId)
         return res.status(503).send('DISCORD_CLIENT_ID not configured.');
 
-    const appUrl        = buildAppUrl(req);
+    const appUrl         = buildAppUrl(req);
     const botCallbackUri = `${appUrl}/api/auth/discord/bot-invited`;
 
     const params = new URLSearchParams({
         client_id:     clientId,
-        permissions:   '8',                       // Administrator
+        permissions:   '8',
         scope:         'bot applications.commands',
         redirect_uri:  botCallbackUri,
         response_type: 'code',
     });
 
-    console.log(`[Auth/Discord] Redirecting to bot invite (permissions=8, Administrator)`);
     res.redirect(`https://discord.com/api/oauth2/authorize?${params}`);
 });
 
 // ── GET /api/auth/discord/bot-invited ─────────────────────────────────────────
-// Discord redirects here after the user adds (or skips adding) the bot.
-// We don't need the code — just confirm and send them to the app.
 router.get('/discord/bot-invited', (req, res) => {
-    const appUrl   = buildAppUrl(req);
-    const guildId  = req.query.guild_id;
+    const appUrl  = buildAppUrl(req);
+    const guildId = req.query.guild_id;
 
     if (guildId) {
         console.log(`[Auth/Discord] Bot added to guild: ${guildId}`);
@@ -315,33 +320,52 @@ router.get('/discord/bot-invited', (req, res) => {
         console.log('[Auth/Discord] Bot invite completed (no guild_id — user may have skipped)');
     }
 
-    res.redirect(`${appUrl}?discord_connected=1`);
+    res.redirect(`${appUrl}/?discord_connected=1`);
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Build the OAuth redirect_uri used BOTH when starting the Discord OAuth flow
+ * and when exchanging the code for a token. These MUST be identical — Discord
+ * validates them and returns an error if they differ.
+ *
+ * Priority:
+ *   1. APP_URL env var (most reliable for production/custom domains)
+ *   2. REPLIT_DEV_DOMAIN (always set in Replit — stable across proxy paths)
+ *   3. X-Forwarded-Host from reverse proxy
+ *   4. req.headers.host (last resort)
+ */
 function buildRedirectUri(req) {
-    const host  = req.headers['x-forwarded-host'] || req.headers.host;
-    const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
-    return `${proto}://${host}/api/auth/discord/callback`;
+    return `${_baseUrl(req)}/api/auth/discord/callback`;
 }
 
+/**
+ * Build the app's public base URL for redirects after OAuth / verify flows.
+ * Same priority order as buildRedirectUri so all redirects land on the same origin.
+ */
 function buildAppUrl(req) {
-    // 1. Prefer explicitly configured public URL — set APP_URL in your host's
-    //    environment variables (Vercel, Railway, Replit Secrets, etc.).
+    return _baseUrl(req);
+}
+
+function _baseUrl(req) {
+    // 1. Explicit override — most reliable, works for custom domains & production
     if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
 
-    // 2. Derive from reverse-proxy headers (works through Vite dev proxy).
-    const host  = req.headers['x-forwarded-host'] || req.headers.host;
-    const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+    // 2. Replit dev domain — always consistent regardless of which internal port
+    //    the request arrived on (direct to 3001 vs proxied through Vite 5000)
+    if (process.env.REPLIT_DEV_DOMAIN)
+        return `https://${process.env.REPLIT_DEV_DOMAIN}`;
 
-    // 3. Fall back to REPLIT_DEV_DOMAIN so callbacks hitting the backend
-    //    directly (external port 80 → port 3001) still redirect to the frontend.
-    if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
-        if (process.env.REPLIT_DEV_DOMAIN)
-            return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-    }
+    // 3. Forwarded host from a trusted reverse proxy
+    const forwardedHost  = req.headers['x-forwarded-host'];
+    const forwardedProto = req.headers['x-forwarded-proto'] || 'https';
+    if (forwardedHost && !forwardedHost.includes('localhost'))
+        return `${forwardedProto}://${forwardedHost.split(',')[0].trim()}`;
 
+    // 4. Direct host header
+    const host  = req.headers.host || 'localhost:3001';
+    const proto = req.secure ? 'https' : 'http';
     return `${proto}://${host}`;
 }
 
